@@ -1,0 +1,452 @@
+[
+  {
+    "question_id": "q01",
+    "question": "How does GPTQ achieve 3-4 bit quantization of large language models in just a few GPU hours?",
+    "gold_paper_ids": ["2210.17323v2"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "specific",
+    "notes": "Tests retrieval of the foundational post-training quantization paper. Contains 'GPTQ' as a strong lexical signal — a healthy BM25 should rank this very high. If even a hybrid retriever misses GPTQ on its own name, something is broken upstream."
+  },
+  {
+    "question_id": "q02",
+    "question": "How does FlashAttention reduce memory I/O for the attention operation?",
+    "gold_paper_ids": ["2205.14135v2"],
+    "gold_chunk_ids": [],
+    "topic": "attention-kernel",
+    "difficulty": "specific",
+    "notes": "Specific via 'FlashAttention'. The hard part is discriminating from FlashAttention-2 and FlashAttention-3, which are also in the corpus. Tests version-disambiguation under lexical match."
+  },
+  {
+    "question_id": "q03",
+    "question": "What does FlashAttention-2 change about work partitioning compared to FlashAttention-1?",
+    "gold_paper_ids": ["2307.08691v1"],
+    "gold_chunk_ids": [],
+    "topic": "attention-kernel",
+    "difficulty": "specific",
+    "notes": "Cross-paper specificity test — must rank FA2 above FA1 despite both names appearing in the question. Discriminating between version papers is a known weakness of pure vector search; hybrid + reranker should help."
+  },
+  {
+    "question_id": "q04",
+    "question": "How does PagedAttention prevent KV cache memory fragmentation in vLLM?",
+    "gold_paper_ids": ["2309.06180v1"],
+    "gold_chunk_ids": [],
+    "topic": "serving",
+    "difficulty": "specific",
+    "notes": "Specific via 'PagedAttention' and 'vLLM' — the paper's two most distinctive named components. Should be an easy lexical retrieval."
+  },
+  {
+    "question_id": "q05",
+    "question": "What does AWQ identify as the small fraction of salient weights that should be protected during quantization?",
+    "gold_paper_ids": ["2306.00978v6"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "specific",
+    "notes": "Specific via 'AWQ' and 'salient weights' (the paper's key concept). Tests precise term-match retrieval among many quantization methods in the corpus that all use broader 'weight quantization' vocabulary."
+  },
+  {
+    "question_id": "q06",
+    "question": "How does SmoothQuant migrate quantization difficulty from activations to weights?",
+    "gold_paper_ids": ["2211.10438v7"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "specific",
+    "notes": "Specific via 'SmoothQuant'. Tests whether retriever surfaces the right technique among activation-quantization papers (LLM.int8, ZeroQuant, etc.) that share the broader problem framing."
+  },
+  {
+    "question_id": "q07",
+    "question": "How does QLoRA's 4-bit NormalFloat enable fine-tuning a 65B parameter language model on a single GPU?",
+    "gold_paper_ids": ["2305.14314v1"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "specific",
+    "notes": "Specific via 'QLoRA' and 'NormalFloat'. NormalFloat is a paper-distinctive contribution name and should anchor retrieval cleanly."
+  },
+  {
+    "question_id": "q08",
+    "question": "How do the Medusa decoding heads predict multiple tokens in parallel without a separate draft model?",
+    "gold_paper_ids": ["2401.10774v3"],
+    "gold_chunk_ids": [],
+    "topic": "speculative-decoding",
+    "difficulty": "specific",
+    "notes": "Specific via 'Medusa'. Discriminates from EAGLE/EAGLE-2/EAGLE-3/Hydra which all share the 'multiple decoding heads' family — direct paper-name match should win."
+  },
+  {
+    "question_id": "q09",
+    "question": "How does BitNet b1.58 use ternary weights {-1, 0, 1} to match full-precision Transformer performance?",
+    "gold_paper_ids": ["2402.17764v1"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "specific",
+    "notes": "Specific via 'BitNet b1.58' (a rare version-tagged name) and explicit weight set {-1, 0, 1}. Must discriminate from the original BitNet (1-bit) which is also in the corpus."
+  },
+  {
+    "question_id": "q10",
+    "question": "How does speculative decoding use rejection sampling to guarantee the output distribution matches the target model?",
+    "gold_paper_ids": ["2211.17192v2", "2302.01318v1"],
+    "gold_chunk_ids": [],
+    "topic": "speculative-decoding",
+    "difficulty": "specific",
+    "notes": "MULTI-GOLD: both foundational SD papers (Leviathan 2022 and Chen 2023, concurrent work) describe rejection sampling for distribution preservation. Either retrieval counts. Recall@k credits the question if ANY gold paper appears in top-k."
+  },
+  {
+    "question_id": "q11",
+    "question": "How can you implement self-attention without storing the full attention matrix in memory?",
+    "gold_paper_ids": ["2112.05682v3"],
+    "gold_chunk_ids": [],
+    "topic": "attention-kernel",
+    "difficulty": "semantic",
+    "notes": "Semantic — describes the algorithmic concept (incremental attention) without naming O(n²)/O(log n) complexities or the paper itself. A researcher who knew FlashAttention but not this earlier algorithmic paper might phrase it this way. Retriever must distinguish algorithm-level vs kernel-level papers."
+  },
+  {
+    "question_id": "q12",
+    "question": "How can a language model handle text sequences much longer than what it was trained on without any retraining?",
+    "gold_paper_ids": ["2309.17453v4"],
+    "gold_chunk_ids": [],
+    "topic": "long-context",
+    "difficulty": "semantic",
+    "notes": "Semantic — avoids 'StreamingLLM', 'attention sink', 'sliding window'. Tests whether the retriever can match a paper from its problem statement alone."
+  },
+  {
+    "question_id": "q13",
+    "question": "How can you run prefill and decoding on separate GPUs to reduce latency interference in LLM serving?",
+    "gold_paper_ids": ["2401.09670v3"],
+    "gold_chunk_ids": [],
+    "topic": "serving",
+    "difficulty": "semantic",
+    "notes": "Semantic — avoids 'DistServe' and 'goodput' (the paper's most distinctive term). 'Prefill' and 'decoding' are general LLM-serving vocabulary, not paper-specific. Overlaps thematically with Splitwise (q44) — see notes there for the disambiguation angle."
+  },
+  {
+    "question_id": "q14",
+    "question": "How can a batched LLM inference scheduler maximize throughput without adding significant latency to individual decode requests?",
+    "gold_paper_ids": ["2403.02310v3"],
+    "gold_chunk_ids": [],
+    "topic": "serving",
+    "difficulty": "semantic",
+    "notes": "Semantic — avoids 'Sarathi', 'chunked-prefills', 'stall-free'. Generic phrasing tests whether the retriever can match the paper from its throughput-latency framing rather than its distinctive scheduler-internals jargon."
+  },
+  {
+    "question_id": "q15",
+    "question": "How can you achieve high-throughput batch inference for very large language models on a single GPU by offloading weights and cache to CPU memory and disk?",
+    "gold_paper_ids": ["2303.06865v2"],
+    "gold_chunk_ids": [],
+    "topic": "serving",
+    "difficulty": "semantic",
+    "notes": "Semantic — avoids 'FlexGen'. Must discriminate from LLM.int8 (also single-GPU 175B but via int8 weights, not offloading) and from GPTQ (compression, not offloading). The 'offloading to CPU memory and disk' is the disambiguator."
+  },
+  {
+    "question_id": "q16",
+    "question": "How can you reduce KV cache memory by keeping only the tokens that continue to receive high attention from the model?",
+    "gold_paper_ids": ["2306.14048v3"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "semantic",
+    "notes": "Semantic — avoids 'H2O' and 'heavy hitter'. Corpus contains multiple KV-eviction methods (Scissorhands, SnapKV, etc.); the 'tokens that continue to receive high attention' phrasing points specifically to H2O's persistence-of-importance hypothesis. KNOWN HARD CASE: vector baseline retrieves correctly, Cohere rerank does NOT — within-cluster failure."
+  },
+  {
+    "question_id": "q17",
+    "question": "How can the draft structure in speculative decoding adapt based on context rather than staying fixed?",
+    "gold_paper_ids": ["2406.16858v2"],
+    "gold_chunk_ids": [],
+    "topic": "speculative-decoding",
+    "difficulty": "semantic",
+    "notes": "Semantic — avoids 'EAGLE-2' and 'dynamic draft tree'. Must discriminate from EAGLE-1, EAGLE-3, Hydra, Medusa, and other tree-based SD methods — only EAGLE-2 specifically introduced the dynamic context-aware adaptation. KNOWN HARD CASE: vector baseline misses, Cohere rerank fixes."
+  },
+  {
+    "question_id": "q18",
+    "question": "How can KV cache budgets be allocated unevenly across transformer layers, with more cache reserved for lower layers?",
+    "gold_paper_ids": ["2406.02069v4"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "semantic",
+    "notes": "Semantic — avoids 'PyramidKV' and 'pyramidal'. The layer-wise differential allocation is the paper's distinguishing idea among KV-cache methods (most others operate uniformly across layers)."
+  },
+  {
+    "question_id": "q19",
+    "question": "How can you compress the KV cache to very low bit-widths by treating the key and value caches with different quantization strategies?",
+    "gold_paper_ids": ["2402.02750v2"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "semantic",
+    "notes": "Semantic — avoids 'KIVI' and 'asymmetric'. Tests retrieval of the K-vs-V differential-treatment idea among many KV-cache compression papers (most apply uniform compression to both)."
+  },
+  {
+    "question_id": "q20",
+    "question": "How can you upgrade an existing pretrained multi-head attention model to use shared key/value heads across query groups without training it from scratch?",
+    "gold_paper_ids": ["2305.13245v3"],
+    "gold_chunk_ids": [],
+    "topic": "attention-kernel",
+    "difficulty": "semantic",
+    "notes": "Semantic — avoids 'GQA' and 'grouped-query attention'. Must discriminate from the earlier MQA paper (Shazeer, q38) — the 'across query groups' (vs 'single shared head') phrasing points to GQA's generalization, and 'upgrade an existing pretrained model' points to the up-training contribution."
+  },
+  {
+    "question_id": "q21",
+    "question": "How does Scissorhands use the persistence-of-importance hypothesis to decide which KV tokens to retain at test time?",
+    "gold_paper_ids": ["2305.17118v2"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "specific",
+    "notes": "v2 expansion — added after observing KV-cache cluster failure (q16) under rerank. Specific via 'Scissorhands' and 'persistence-of-importance' (the paper's central hypothesis). Discriminates from other KV eviction methods that frame their approach differently (H2O uses 'heavy hitter', SnapKV uses prompt observation)."
+  },
+  {
+    "question_id": "q22",
+    "question": "How can KV cache compression combine quantization with low-rank decomposition and a sparse residual to achieve near-lossless results?",
+    "gold_paper_ids": ["2403.05527v4"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'GEAR'. The three-way combination (quant + low-rank + sparse) is GEAR-distinctive. Should NOT match KIVI (quant only, q19), LoRC (low-rank only, q26), or SpQR (only weights, not KV)."
+  },
+  {
+    "question_id": "q23",
+    "question": "How can KV cache budgets be allocated unevenly across different attention heads based on each head's varying importance?",
+    "gold_paper_ids": ["2407.11550v5"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'Ada-KV'. Per-head budget allocation is Ada-KV's distinguishing contribution. Discriminates from PyramidKV (per-layer, q18) and uniform-budget methods."
+  },
+  {
+    "question_id": "q24",
+    "question": "How can the right tokens to keep in the KV cache be identified by examining only the input prompt, before any tokens are generated?",
+    "gold_paper_ids": ["2404.14469v1"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'SnapKV'. The 'before generation' / 'examining the prompt' angle is SnapKV-specific. Discriminates from H2O and Scissorhands (which observe attention DURING generation)."
+  },
+  {
+    "question_id": "q25",
+    "question": "How can KV caches across adjacent transformer layers be merged to reduce memory by exploiting their cross-layer similarity?",
+    "gold_paper_ids": ["2405.14366v2"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'MiniCache'. The depth-wise / cross-layer angle is MiniCache-distinctive. Discriminates from intra-layer eviction or compression methods."
+  },
+  {
+    "question_id": "q26",
+    "question": "How can KV cache memory be reduced via low-rank compression that progressively adjusts the compression ratio across layers without retraining?",
+    "gold_paper_ids": ["2410.03111v1"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'LoRC'. 'Low-rank' + 'progressive' is the LoRC-specific combo. Discriminates from quantization-based methods and from rank-decomposition methods that aren't progressive."
+  },
+  {
+    "question_id": "q27",
+    "question": "How does ChunkKV compress KV caches by preserving semantic chunks rather than evicting individual tokens?",
+    "gold_paper_ids": ["2502.00299v3"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'ChunkKV' and 'semantic chunks'. Tests retrieval of a paper whose contribution is operating on chunks instead of individual tokens — a structural difference within the KV cache compression cluster."
+  },
+  {
+    "question_id": "q28",
+    "question": "How can a precomputed KV cache be transmitted over a network while adapting to varying available bandwidth?",
+    "gold_paper_ids": ["2310.07240v6"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'CacheGen'. The network/bandwidth angle is system-level rather than algorithm-level — CacheGen is the only paper in the corpus addressing this. Should be easy if the retriever respects topic specificity."
+  },
+  {
+    "question_id": "q29",
+    "question": "What does the 'heavy hitter' phenomenon in LLM attention say about which tokens to keep when evicting from the KV cache?",
+    "gold_paper_ids": ["2306.14048v3"],
+    "gold_chunk_ids": [],
+    "topic": "kv-cache",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'heavy hitter' (H2O's distinctive term, taken from the title). Tests the lexical-match path on a paper-specific concept. PAIRED WITH q16 (semantic version): q16 failed under rerank — does the specific lexical version succeed? Diagnostic value."
+  },
+  {
+    "question_id": "q30",
+    "question": "How can speculative decoding remain effective at large batch sizes, where its conventional wisdom suggests diminishing returns?",
+    "gold_paper_ids": ["2408.11049v5"],
+    "gold_chunk_ids": [],
+    "topic": "speculative-decoding",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'MagicDec'. Challenges the conventional wisdom — that framing is the disambiguator from generic SD papers (which don't address batch-size scaling)."
+  },
+  {
+    "question_id": "q31",
+    "question": "What problem does Hydra solve that the original Medusa decoding heads couldn't handle?",
+    "gold_paper_ids": ["2402.05109v2"],
+    "gold_chunk_ids": [],
+    "topic": "speculative-decoding",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'Hydra' and 'Medusa'. Cross-paper specificity — must rank Hydra above Medusa even though Medusa is named in the question. Diagnostic for whether retriever can disambiguate the asker-mentioned-it-for-context case from the actual target."
+  },
+  {
+    "question_id": "q32",
+    "question": "How does EAGLE-3 scale up speculative sampling training compared to EAGLE-2?",
+    "gold_paper_ids": ["2503.01840v3"],
+    "gold_chunk_ids": [],
+    "topic": "speculative-decoding",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'EAGLE-3' and 'EAGLE-2'. Direct cross-version disambiguation — three EAGLE papers in corpus (EAGLE q34, EAGLE-2 q17, EAGLE-3 q32). Each must rank itself first."
+  },
+  {
+    "question_id": "q33",
+    "question": "How can the draft model in speculative decoding be continuously updated to track the target model's behavior on actual deployed inputs?",
+    "gold_paper_ids": ["2310.07177v4"],
+    "gold_chunk_ids": [],
+    "topic": "speculative-decoding",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'Online Speculative Decoding'. The 'continuously updated' angle distinguishes from static-draft approaches like vanilla SD (q10), EAGLE (q34), Medusa (q08)."
+  },
+  {
+    "question_id": "q34",
+    "question": "How can speculative decoding be improved by having the draft model predict the target model's internal feature representations instead of its tokens?",
+    "gold_paper_ids": ["2401.15077v3"],
+    "gold_chunk_ids": [],
+    "topic": "speculative-decoding",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'EAGLE'. Feature-prediction is EAGLE's specific contribution. Should rank EAGLE above EAGLE-2 (q17, dynamic tree) and EAGLE-3 (q32, training scale) — version-disambiguation test in the semantic case."
+  },
+  {
+    "question_id": "q35",
+    "question": "What does FlashAttention-3 add over FlashAttention-2 to take advantage of Hopper-generation GPUs?",
+    "gold_paper_ids": ["2407.08608v2"],
+    "gold_chunk_ids": [],
+    "topic": "attention-kernel",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'FlashAttention-3' and 'FlashAttention-2'. Completes three-way version disambiguation: FA1 (q02), FA2 (q03), FA3 (q35) — all in corpus, all answerable."
+  },
+  {
+    "question_id": "q36",
+    "question": "How can attention computation be distributed across many GPUs for sequences too long to fit on any single GPU, with communication overlapping computation?",
+    "gold_paper_ids": ["2310.01889v4"],
+    "gold_chunk_ids": [],
+    "topic": "attention-kernel",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'Ring Attention'. The 'distributed across GPUs' + 'communication-computation overlap' framing is Ring Attention's specific contribution. Discriminates from single-GPU long-context methods."
+  },
+  {
+    "question_id": "q37",
+    "question": "How can the load imbalance in causal attention be mitigated when distributing the attention computation across multiple devices?",
+    "gold_paper_ids": ["2311.09431v1"],
+    "gold_chunk_ids": [],
+    "topic": "attention-kernel",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'Striped Attention'. Causal load-balancing is the specific contribution. Must discriminate from Ring Attention (q36) which doesn't address causal imbalance — within-cluster pair."
+  },
+  {
+    "question_id": "q38",
+    "question": "How does Multi-Query Attention reduce memory bandwidth during incremental decoding by sharing key and value tensors across all attention heads?",
+    "gold_paper_ids": ["1911.02150v1"],
+    "gold_chunk_ids": [],
+    "topic": "attention-kernel",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'Multi-Query Attention'. Direct disambiguation from GQA (q20) — GQA shares K/V across QUERY GROUPS, MQA shares across ALL heads. Tests exact concept disambiguation within the K/V-sharing pair."
+  },
+  {
+    "question_id": "q39",
+    "question": "How does SpQR keep difficult outlier weights at high precision in a sparse format while quantizing the bulk to very low bits?",
+    "gold_paper_ids": ["2306.03078v1"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'SpQR'. Sparse-quantized representation is its contribution — within-cluster disambiguation from SqueezeLLM (q42) which also uses dense+sparse but for a different reason."
+  },
+  {
+    "question_id": "q40",
+    "question": "How can quantization parameters for very low-bit LLM compression be optimized via gradient descent rather than chosen heuristically?",
+    "gold_paper_ids": ["2308.13137v3"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'OmniQuant'. Learned/gradient-optimized calibration is OmniQuant's contribution. Discriminates from one-shot methods (GPTQ q01, AWQ q05) and from outlier-isolation methods (SpQR q39, SqueezeLLM q42)."
+  },
+  {
+    "question_id": "q41",
+    "question": "What does QuIP# add over the original QuIP through Hadamard incoherence transforms and lattice codebooks?",
+    "gold_paper_ids": ["2402.04396v2"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'QuIP#'. Cross-version disambiguation from QuIP (also in corpus). Tests retrieval of the version paper specifically extending a prior contribution — parallel to the FA1/FA2/FA3 and EAGLE/EAGLE-2/EAGLE-3 version chains."
+  },
+  {
+    "question_id": "q42",
+    "question": "How does SqueezeLLM combine dense low-bit quantization with a sparse outlier representation?",
+    "gold_paper_ids": ["2306.07629v4"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'SqueezeLLM'. Within-cluster disambiguation: SqueezeLLM and SpQR (q39) BOTH use dense-plus-sparse structures but with different motivations. Must rank SqueezeLLM correctly when asked about it specifically."
+  },
+  {
+    "question_id": "q43",
+    "question": "How can language model weights be compressed extremely aggressively to 2-3 bits via additive multi-codebook quantization?",
+    "gold_paper_ids": ["2401.06118v4"],
+    "gold_chunk_ids": [],
+    "topic": "quantization",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'AQLM'. Additive multi-codebook representation is AQLM-distinctive. Discriminates from scalar quantization methods (GPTQ, AWQ) and lattice-based methods (QuIP# q41)."
+  },
+  {
+    "question_id": "q44",
+    "question": "How can the prompt-processing and token-generation phases of LLM inference be split onto different types of hardware to optimize for cost?",
+    "gold_paper_ids": ["2311.18677v2"],
+    "gold_chunk_ids": [],
+    "topic": "serving",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'Splitwise'. Phase-splitting onto heterogeneous hardware is Splitwise's specific contribution. Overlaps territory with DistServe (q13) — the 'heterogeneous hardware / cost' angle is the disambiguator."
+  },
+  {
+    "question_id": "q45",
+    "question": "How can statistical multiplexing across model parallelism replicas reduce tail latency in deep learning serving?",
+    "gold_paper_ids": ["2302.11665v2"],
+    "gold_chunk_ids": [],
+    "topic": "serving",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'AlpaServe'. Statistical-multiplexing + model-parallelism combo is AlpaServe-specific. Distinguishes from serving systems that focus on intra-request optimization."
+  },
+  {
+    "question_id": "q46",
+    "question": "How can the throughput of LLM serving be improved while sticking to latency SLAs by carefully scheduling prefill chunks alongside ongoing decode work?",
+    "gold_paper_ids": ["2403.02310v3"],
+    "gold_chunk_ids": [],
+    "topic": "serving",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'Sarathi' and 'chunked-prefill'. Second question about Sarathi-Serve (different angle from q14) — probes whether retriever can find the same paper from two distinct query framings. Intra-question retrieval consistency check."
+  },
+  {
+    "question_id": "q47",
+    "question": "How does DeepSpeed-FastGen use Dynamic SplitFuse to improve throughput for long-prompt LLM generation workloads?",
+    "gold_paper_ids": ["2401.08671v1"],
+    "gold_chunk_ids": [],
+    "topic": "serving",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'DeepSpeed-FastGen' and 'Dynamic SplitFuse'. Tests retrieval of a paper using its proprietary technique name (Dynamic SplitFuse) alongside its product name."
+  },
+  {
+    "question_id": "q48",
+    "question": "How can self-attention complexity be reduced from quadratic to linear via low-rank projections of the key and value matrices?",
+    "gold_paper_ids": ["2006.04768v3"],
+    "gold_chunk_ids": [],
+    "topic": "long-context",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'Linformer'. Low-rank K/V projection is Linformer-specific. Must discriminate from Performer (q49, kernel-feature-based) and Reformer (LSH-based) — the long-context sparse-attention cluster."
+  },
+  {
+    "question_id": "q49",
+    "question": "How can attention complexity be reduced to linear time by approximating the softmax through positive random feature maps?",
+    "gold_paper_ids": ["2009.14794v4"],
+    "gold_chunk_ids": [],
+    "topic": "long-context",
+    "difficulty": "semantic",
+    "notes": "v2 expansion. Semantic — avoids 'Performer' and 'FAVOR+'. Positive random features is Performer-distinctive. Within-cluster disambiguation from Linformer (q48) — both reduce to linear, different math."
+  },
+  {
+    "question_id": "q50",
+    "question": "How does BigBird combine random, global, and local attention patterns to handle long sequences while remaining a universal approximator?",
+    "gold_paper_ids": ["2007.14062v2"],
+    "gold_chunk_ids": [],
+    "topic": "long-context",
+    "difficulty": "specific",
+    "notes": "v2 expansion. Specific via 'BigBird'. The three-pattern combination (random + global + local) is BigBird-distinctive — distinguishes from Longformer (local + global only, no random)."
+  }
+]

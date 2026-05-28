@@ -1,0 +1,25 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secrets
+.env
+
+# Chromadb (vector index — regenerable via embed_and_index.py)
+stage_1/data/chroma_db/
+
+# macOS
+.DS_Store
+
+# Paper PDF files
+paper_pdfs/
+
+# Testing file
+test.py

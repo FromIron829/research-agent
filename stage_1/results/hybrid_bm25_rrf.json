@@ -1,0 +1,2428 @@
+{
+  "method": "vector+bm25+rrf",
+  "embed_model": "text-embedding-3-small",
+  "bm25_tokenizer": "regex \\b\\w[\\w.-]*\\b lowercased",
+  "rrf_k": 60,
+  "initial_k": 50,
+  "final_k": 10,
+  "n_questions": 50,
+  "overall": {
+    "recall_at_5": 0.96,
+    "recall_at_10": 0.98
+  },
+  "by_difficulty": {
+    "specific": 1.0,
+    "semantic": 0.9285714285714286
+  },
+  "by_topic": {
+    "quantization": 1.0,
+    "attention-kernel": 1.0,
+    "serving": 1.0,
+    "speculative-decoding": 0.875,
+    "long-context": 1.0,
+    "kv-cache": 0.9166666666666666
+  },
+  "per_question": [
+    {
+      "question_id": "q01",
+      "question": "How does GPTQ achieve 3-4 bit quantization of large language models in just a few GPU hours?",
+      "difficulty": "specific",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2210.17323v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2210.17323v2",
+          "title": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers",
+          "rrf_score": 0.0323,
+          "vector_rank": 2,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2210.17323v2",
+          "title": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers",
+          "rrf_score": 0.0318,
+          "vector_rank": 1,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2210.17323v2",
+          "title": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers",
+          "rrf_score": 0.0315,
+          "vector_rank": 6,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2210.17323v2",
+          "title": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers",
+          "rrf_score": 0.0313,
+          "vector_rank": 5,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2210.17323v2",
+          "title": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers",
+          "rrf_score": 0.0302,
+          "vector_rank": 3,
+          "bm25_rank": 10
+        }
+      ]
+    },
+    {
+      "question_id": "q02",
+      "question": "How does FlashAttention reduce memory I/O for the attention operation?",
+      "difficulty": "specific",
+      "topic": "attention-kernel",
+      "gold_paper_ids": [
+        "2205.14135v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2307.08691v1",
+          "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+          "rrf_score": 0.0308,
+          "vector_rank": 3,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2205.14135v2",
+          "title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+          "rrf_score": 0.0306,
+          "vector_rank": 2,
+          "bm25_rank": 9
+        },
+        {
+          "arxiv_id": "2205.14135v2",
+          "title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+          "rrf_score": 0.0301,
+          "vector_rank": 8,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2205.14135v2",
+          "title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+          "rrf_score": 0.0286,
+          "vector_rank": 4,
+          "bm25_rank": 17
+        },
+        {
+          "arxiv_id": "2309.06180v1",
+          "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+          "rrf_score": 0.0286,
+          "vector_rank": 22,
+          "bm25_rank": 1
+        }
+      ]
+    },
+    {
+      "question_id": "q03",
+      "question": "What does FlashAttention-2 change about work partitioning compared to FlashAttention-1?",
+      "difficulty": "specific",
+      "topic": "attention-kernel",
+      "gold_paper_ids": [
+        "2307.08691v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2307.08691v1",
+          "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2307.08691v1",
+          "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+          "rrf_score": 0.0317,
+          "vector_rank": 3,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2407.08608v2",
+          "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+          "rrf_score": 0.0301,
+          "vector_rank": 9,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2307.08691v1",
+          "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+          "rrf_score": 0.0296,
+          "vector_rank": 7,
+          "bm25_rank": 8
+        },
+        {
+          "arxiv_id": "2307.08691v1",
+          "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+          "rrf_score": 0.0293,
+          "vector_rank": 4,
+          "bm25_rank": 13
+        }
+      ]
+    },
+    {
+      "question_id": "q04",
+      "question": "How does PagedAttention prevent KV cache memory fragmentation in vLLM?",
+      "difficulty": "specific",
+      "topic": "serving",
+      "gold_paper_ids": [
+        "2309.06180v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2309.06180v1",
+          "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+          "rrf_score": 0.0325,
+          "vector_rank": 2,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2309.06180v1",
+          "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+          "rrf_score": 0.0318,
+          "vector_rank": 4,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2309.06180v1",
+          "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+          "rrf_score": 0.0317,
+          "vector_rank": 3,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2309.06180v1",
+          "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+          "rrf_score": 0.0313,
+          "vector_rank": 1,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2309.06180v1",
+          "title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+          "rrf_score": 0.0301,
+          "vector_rank": 5,
+          "bm25_rank": 8
+        }
+      ]
+    },
+    {
+      "question_id": "q05",
+      "question": "What does AWQ identify as the small fraction of salient weights that should be protected during quantization?",
+      "difficulty": "specific",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2306.00978v6"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2306.00978v6",
+          "title": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration",
+          "rrf_score": 0.0323,
+          "vector_rank": 2,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2306.00978v6",
+          "title": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration",
+          "rrf_score": 0.032,
+          "vector_rank": 1,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2306.00978v6",
+          "title": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration",
+          "rrf_score": 0.0318,
+          "vector_rank": 5,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2306.00978v6",
+          "title": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration",
+          "rrf_score": 0.031,
+          "vector_rank": 4,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2306.00978v6",
+          "title": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration",
+          "rrf_score": 0.0296,
+          "vector_rank": 9,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q06",
+      "question": "How does SmoothQuant migrate quantization difficulty from activations to weights?",
+      "difficulty": "specific",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2211.10438v7"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2211.10438v7",
+          "title": "SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models",
+          "rrf_score": 0.0325,
+          "vector_rank": 1,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2211.10438v7",
+          "title": "SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models",
+          "rrf_score": 0.0325,
+          "vector_rank": 2,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2211.10438v7",
+          "title": "SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models",
+          "rrf_score": 0.0313,
+          "vector_rank": 3,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2211.10438v7",
+          "title": "SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models",
+          "rrf_score": 0.031,
+          "vector_rank": 6,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2211.10438v7",
+          "title": "SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models",
+          "rrf_score": 0.0301,
+          "vector_rank": 4,
+          "bm25_rank": 9
+        }
+      ]
+    },
+    {
+      "question_id": "q07",
+      "question": "How does QLoRA's 4-bit NormalFloat enable fine-tuning a 65B parameter language model on a single GPU?",
+      "difficulty": "specific",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2305.14314v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2305.14314v1",
+          "title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+          "rrf_score": 0.0323,
+          "vector_rank": 3,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2305.14314v1",
+          "title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+          "rrf_score": 0.032,
+          "vector_rank": 2,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2305.14314v1",
+          "title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+          "rrf_score": 0.0315,
+          "vector_rank": 5,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2305.14314v1",
+          "title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+          "rrf_score": 0.0312,
+          "vector_rank": 4,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2305.14314v1",
+          "title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+          "rrf_score": 0.0311,
+          "vector_rank": 1,
+          "bm25_rank": 8
+        }
+      ]
+    },
+    {
+      "question_id": "q08",
+      "question": "How do the Medusa decoding heads predict multiple tokens in parallel without a separate draft model?",
+      "difficulty": "specific",
+      "topic": "speculative-decoding",
+      "gold_paper_ids": [
+        "2401.10774v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2401.10774v3",
+          "title": "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2401.10774v3",
+          "title": "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads",
+          "rrf_score": 0.032,
+          "vector_rank": 2,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.031,
+          "vector_rank": 4,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2401.10774v3",
+          "title": "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads",
+          "rrf_score": 0.0304,
+          "vector_rank": 10,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2402.05109v2",
+          "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+          "rrf_score": 0.0296,
+          "vector_rank": 7,
+          "bm25_rank": 8
+        }
+      ]
+    },
+    {
+      "question_id": "q09",
+      "question": "How does BitNet b1.58 use ternary weights {-1, 0, 1} to match full-precision Transformer performance?",
+      "difficulty": "specific",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2402.17764v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2402.17764v1",
+          "title": "The Era of 1-bit LLMs: All Large Language Models are in 1.58 Bits",
+          "rrf_score": 0.0323,
+          "vector_rank": 1,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2402.17764v1",
+          "title": "The Era of 1-bit LLMs: All Large Language Models are in 1.58 Bits",
+          "rrf_score": 0.0323,
+          "vector_rank": 3,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2402.17764v1",
+          "title": "The Era of 1-bit LLMs: All Large Language Models are in 1.58 Bits",
+          "rrf_score": 0.0304,
+          "vector_rank": 10,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2310.11453v1",
+          "title": "BitNet: Scaling 1-bit Transformers for Large Language Models",
+          "rrf_score": 0.0293,
+          "vector_rank": 5,
+          "bm25_rank": 12
+        },
+        {
+          "arxiv_id": "2402.17764v1",
+          "title": "The Era of 1-bit LLMs: All Large Language Models are in 1.58 Bits",
+          "rrf_score": 0.0291,
+          "vector_rank": 13,
+          "bm25_rank": 5
+        }
+      ]
+    },
+    {
+      "question_id": "q10",
+      "question": "How does speculative decoding use rejection sampling to guarantee the output distribution matches the target model?",
+      "difficulty": "specific",
+      "topic": "speculative-decoding",
+      "gold_paper_ids": [
+        "2211.17192v2",
+        "2302.01318v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2211.17192v2",
+          "title": "Fast Inference from Transformers via Speculative Decoding",
+          "rrf_score": 0.0323,
+          "vector_rank": 2,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2603.03251v3",
+          "title": "Speculative Speculative Decoding",
+          "rrf_score": 0.032,
+          "vector_rank": 1,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2302.01318v1",
+          "title": "Accelerating Large Language Model Decoding with Speculative Sampling",
+          "rrf_score": 0.0301,
+          "vector_rank": 5,
+          "bm25_rank": 8
+        },
+        {
+          "arxiv_id": "2310.15141v2",
+          "title": "SpecTr: Fast Speculative Decoding via Optimal Transport",
+          "rrf_score": 0.029,
+          "vector_rank": 8,
+          "bm25_rank": 10
+        },
+        {
+          "arxiv_id": "2402.05109v2",
+          "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+          "rrf_score": 0.028,
+          "vector_rank": 18,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q11",
+      "question": "How can you implement self-attention without storing the full attention matrix in memory?",
+      "difficulty": "semantic",
+      "topic": "attention-kernel",
+      "gold_paper_ids": [
+        "2112.05682v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2305.19370v3",
+          "title": "Blockwise Parallel Transformer for Large Context Models",
+          "rrf_score": 0.0306,
+          "vector_rank": 7,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2205.14135v2",
+          "title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+          "rrf_score": 0.0264,
+          "vector_rank": 21,
+          "bm25_rank": 11
+        },
+        {
+          "arxiv_id": "2205.14135v2",
+          "title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+          "rrf_score": 0.0261,
+          "vector_rank": 38,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2006.04768v3",
+          "title": "Linformer: Self-Attention with Linear Complexity",
+          "rrf_score": 0.026,
+          "vector_rank": 17,
+          "bm25_rank": 17
+        },
+        {
+          "arxiv_id": "2112.05682v3",
+          "title": "Self-attention Does Not Need $O(n^2)$ Memory",
+          "rrf_score": 0.0258,
+          "vector_rank": 11,
+          "bm25_rank": 25
+        }
+      ]
+    },
+    {
+      "question_id": "q12",
+      "question": "How can a language model handle text sequences much longer than what it was trained on without any retraining?",
+      "difficulty": "semantic",
+      "topic": "long-context",
+      "gold_paper_ids": [
+        "2309.17453v4"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2309.17453v4",
+          "title": "Efficient Streaming Language Models with Attention Sinks",
+          "rrf_score": 0.0286,
+          "vector_rank": 13,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2310.01889v4",
+          "title": "Ring Attention with Blockwise Transformers for Near-Infinite Context",
+          "rrf_score": 0.0284,
+          "vector_rank": 7,
+          "bm25_rank": 14
+        },
+        {
+          "arxiv_id": "2007.14062v2",
+          "title": "Big Bird: Transformers for Longer Sequences",
+          "rrf_score": 0.0274,
+          "vector_rank": 27,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2001.04451v2",
+          "title": "Reformer: The Efficient Transformer",
+          "rrf_score": 0.0261,
+          "vector_rank": 40,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2309.17453v4",
+          "title": "Efficient Streaming Language Models with Attention Sinks",
+          "rrf_score": 0.0261,
+          "vector_rank": 1,
+          "bm25_rank": 43
+        }
+      ]
+    },
+    {
+      "question_id": "q13",
+      "question": "How can you run prefill and decoding on separate GPUs to reduce latency interference in LLM serving?",
+      "difficulty": "semantic",
+      "topic": "serving",
+      "gold_paper_ids": [
+        "2401.09670v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2401.09670v3",
+          "title": "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving",
+          "rrf_score": 0.0323,
+          "vector_rank": 3,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2401.09670v3",
+          "title": "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving",
+          "rrf_score": 0.0323,
+          "vector_rank": 2,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2401.09670v3",
+          "title": "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving",
+          "rrf_score": 0.032,
+          "vector_rank": 1,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2401.09670v3",
+          "title": "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving",
+          "rrf_score": 0.0315,
+          "vector_rank": 4,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2401.09670v3",
+          "title": "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving",
+          "rrf_score": 0.0303,
+          "vector_rank": 5,
+          "bm25_rank": 7
+        }
+      ]
+    },
+    {
+      "question_id": "q14",
+      "question": "How can a batched LLM inference scheduler maximize throughput without adding significant latency to individual decode requests?",
+      "difficulty": "semantic",
+      "topic": "serving",
+      "gold_paper_ids": [
+        "2403.02310v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2403.02310v3",
+          "title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+          "rrf_score": 0.0325,
+          "vector_rank": 1,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2403.02310v3",
+          "title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+          "rrf_score": 0.0312,
+          "vector_rank": 4,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2311.18677v2",
+          "title": "Splitwise: Efficient generative LLM inference using phase splitting",
+          "rrf_score": 0.0288,
+          "vector_rank": 11,
+          "bm25_rank": 8
+        },
+        {
+          "arxiv_id": "2403.02310v3",
+          "title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+          "rrf_score": 0.0284,
+          "vector_rank": 12,
+          "bm25_rank": 9
+        },
+        {
+          "arxiv_id": "2403.02310v3",
+          "title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+          "rrf_score": 0.0282,
+          "vector_rank": 25,
+          "bm25_rank": 1
+        }
+      ]
+    },
+    {
+      "question_id": "q15",
+      "question": "How can you achieve high-throughput batch inference for very large language models on a single GPU by offloading weights and cache to CPU memory and disk?",
+      "difficulty": "semantic",
+      "topic": "serving",
+      "gold_paper_ids": [
+        "2303.06865v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2303.06865v2",
+          "title": "FlexGen: High-Throughput Generative Inference of Large Language Models with a Single GPU",
+          "rrf_score": 0.0323,
+          "vector_rank": 1,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2303.06865v2",
+          "title": "FlexGen: High-Throughput Generative Inference of Large Language Models with a Single GPU",
+          "rrf_score": 0.0315,
+          "vector_rank": 5,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2303.06865v2",
+          "title": "FlexGen: High-Throughput Generative Inference of Large Language Models with a Single GPU",
+          "rrf_score": 0.0303,
+          "vector_rank": 12,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2303.06865v2",
+          "title": "FlexGen: High-Throughput Generative Inference of Large Language Models with a Single GPU",
+          "rrf_score": 0.0296,
+          "vector_rank": 9,
+          "bm25_rank": 6
+        },
+        {
+          "arxiv_id": "2303.06865v2",
+          "title": "FlexGen: High-Throughput Generative Inference of Large Language Models with a Single GPU",
+          "rrf_score": 0.0294,
+          "vector_rank": 8,
+          "bm25_rank": 8
+        }
+      ]
+    },
+    {
+      "question_id": "q16",
+      "question": "How can you reduce KV cache memory by keeping only the tokens that continue to receive high attention from the model?",
+      "difficulty": "semantic",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2306.14048v3"
+      ],
+      "recall_at_5": 0.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2402.02750v2",
+          "title": "KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache",
+          "rrf_score": 0.0293,
+          "vector_rank": 2,
+          "bm25_rank": 16
+        },
+        {
+          "arxiv_id": "2305.17118v2",
+          "title": "Scissorhands: Exploiting the Persistence of Importance Hypothesis for LLM KV Cache Compression at Test Time",
+          "rrf_score": 0.0284,
+          "vector_rank": 12,
+          "bm25_rank": 9
+        },
+        {
+          "arxiv_id": "2310.01801v4",
+          "title": "Model Tells You What to Discard: Adaptive KV Cache Compression for LLMs",
+          "rrf_score": 0.0256,
+          "vector_rank": 36,
+          "bm25_rank": 6
+        },
+        {
+          "arxiv_id": "2405.14366v2",
+          "title": "MiniCache: KV Cache Compression in Depth Dimension for Large Language Models",
+          "rrf_score": 0.025,
+          "vector_rank": 44,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.0226,
+          "vector_rank": 39,
+          "bm25_rank": 20
+        }
+      ]
+    },
+    {
+      "question_id": "q17",
+      "question": "How can the draft structure in speculative decoding adapt based on context rather than staying fixed?",
+      "difficulty": "semantic",
+      "topic": "speculative-decoding",
+      "gold_paper_ids": [
+        "2406.16858v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2402.05109v2",
+          "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+          "rrf_score": 0.032,
+          "vector_rank": 3,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2310.15141v2",
+          "title": "SpecTr: Fast Speculative Decoding via Optimal Transport",
+          "rrf_score": 0.0299,
+          "vector_rank": 7,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2406.16858v2",
+          "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+          "rrf_score": 0.0294,
+          "vector_rank": 17,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2408.11049v5",
+          "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+          "rrf_score": 0.0284,
+          "vector_rank": 10,
+          "bm25_rank": 11
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.0275,
+          "vector_rank": 21,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q18",
+      "question": "How can KV cache budgets be allocated unevenly across transformer layers, with more cache reserved for lower layers?",
+      "difficulty": "semantic",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2406.02069v4"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2406.02069v4",
+          "title": "PyramidKV: Dynamic KV Cache Compression based on Pyramidal Information Funneling",
+          "rrf_score": 0.0325,
+          "vector_rank": 1,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2406.02069v4",
+          "title": "PyramidKV: Dynamic KV Cache Compression based on Pyramidal Information Funneling",
+          "rrf_score": 0.0313,
+          "vector_rank": 2,
+          "bm25_rank": 6
+        },
+        {
+          "arxiv_id": "2406.02069v4",
+          "title": "PyramidKV: Dynamic KV Cache Compression based on Pyramidal Information Funneling",
+          "rrf_score": 0.031,
+          "vector_rank": 4,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2405.14366v2",
+          "title": "MiniCache: KV Cache Compression in Depth Dimension for Large Language Models",
+          "rrf_score": 0.028,
+          "vector_rank": 9,
+          "bm25_rank": 14
+        },
+        {
+          "arxiv_id": "2310.07240v6",
+          "title": "CacheGen: KV Cache Compression and Streaming for Fast Large Language Model Serving",
+          "rrf_score": 0.0271,
+          "vector_rank": 22,
+          "bm25_rank": 7
+        }
+      ]
+    },
+    {
+      "question_id": "q19",
+      "question": "How can you compress the KV cache to very low bit-widths by treating the key and value caches with different quantization strategies?",
+      "difficulty": "semantic",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2402.02750v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2402.02750v2",
+          "title": "KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache",
+          "rrf_score": 0.031,
+          "vector_rank": 5,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2502.10424v1",
+          "title": "QuantSpec: Self-Speculative Decoding with Hierarchical Quantized KV Cache",
+          "rrf_score": 0.0305,
+          "vector_rank": 11,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2402.02750v2",
+          "title": "KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache",
+          "rrf_score": 0.0303,
+          "vector_rank": 7,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2403.05527v4",
+          "title": "GEAR: An Efficient KV Cache Compression Recipe for Near-Lossless Generative Inference of LLM",
+          "rrf_score": 0.0295,
+          "vector_rank": 2,
+          "bm25_rank": 15
+        },
+        {
+          "arxiv_id": "2402.02750v2",
+          "title": "KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache",
+          "rrf_score": 0.0294,
+          "vector_rank": 10,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q20",
+      "question": "How can you upgrade an existing pretrained multi-head attention model to use shared key/value heads across query groups without training it from scratch?",
+      "difficulty": "semantic",
+      "topic": "attention-kernel",
+      "gold_paper_ids": [
+        "2305.13245v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2305.13245v3",
+          "title": "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints",
+          "rrf_score": 0.0325,
+          "vector_rank": 2,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2305.13245v3",
+          "title": "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints",
+          "rrf_score": 0.0313,
+          "vector_rank": 6,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.0289,
+          "vector_rank": 13,
+          "bm25_rank": 6
+        },
+        {
+          "arxiv_id": "2211.05102v1",
+          "title": "Efficiently Scaling Transformer Inference",
+          "rrf_score": 0.0284,
+          "vector_rank": 3,
+          "bm25_rank": 20
+        },
+        {
+          "arxiv_id": "2305.13245v3",
+          "title": "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints",
+          "rrf_score": 0.0278,
+          "vector_rank": 15,
+          "bm25_rank": 9
+        }
+      ]
+    },
+    {
+      "question_id": "q21",
+      "question": "How does Scissorhands use the persistence-of-importance hypothesis to decide which KV tokens to retain at test time?",
+      "difficulty": "specific",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2305.17118v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2305.17118v2",
+          "title": "Scissorhands: Exploiting the Persistence of Importance Hypothesis for LLM KV Cache Compression at Test Time",
+          "rrf_score": 0.0325,
+          "vector_rank": 2,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2305.17118v2",
+          "title": "Scissorhands: Exploiting the Persistence of Importance Hypothesis for LLM KV Cache Compression at Test Time",
+          "rrf_score": 0.0315,
+          "vector_rank": 4,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2305.17118v2",
+          "title": "Scissorhands: Exploiting the Persistence of Importance Hypothesis for LLM KV Cache Compression at Test Time",
+          "rrf_score": 0.0301,
+          "vector_rank": 1,
+          "bm25_rank": 13
+        },
+        {
+          "arxiv_id": "2305.17118v2",
+          "title": "Scissorhands: Exploiting the Persistence of Importance Hypothesis for LLM KV Cache Compression at Test Time",
+          "rrf_score": 0.0285,
+          "vector_rank": 6,
+          "bm25_rank": 15
+        },
+        {
+          "arxiv_id": "2305.17118v2",
+          "title": "Scissorhands: Exploiting the Persistence of Importance Hypothesis for LLM KV Cache Compression at Test Time",
+          "rrf_score": 0.0281,
+          "vector_rank": 17,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q22",
+      "question": "How can KV cache compression combine quantization with low-rank decomposition and a sparse residual to achieve near-lossless results?",
+      "difficulty": "semantic",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2403.05527v4"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2403.05527v4",
+          "title": "GEAR: An Efficient KV Cache Compression Recipe for Near-Lossless Generative Inference of LLM",
+          "rrf_score": 0.0304,
+          "vector_rank": 2,
+          "bm25_rank": 10
+        },
+        {
+          "arxiv_id": "2403.05527v4",
+          "title": "GEAR: An Efficient KV Cache Compression Recipe for Near-Lossless Generative Inference of LLM",
+          "rrf_score": 0.0298,
+          "vector_rank": 3,
+          "bm25_rank": 12
+        },
+        {
+          "arxiv_id": "2403.05527v4",
+          "title": "GEAR: An Efficient KV Cache Compression Recipe for Near-Lossless Generative Inference of LLM",
+          "rrf_score": 0.0288,
+          "vector_rank": 16,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.0288,
+          "vector_rank": 10,
+          "bm25_rank": 9
+        },
+        {
+          "arxiv_id": "2401.18079v6",
+          "title": "KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization",
+          "rrf_score": 0.0281,
+          "vector_rank": 6,
+          "bm25_rank": 17
+        }
+      ]
+    },
+    {
+      "question_id": "q23",
+      "question": "How can KV cache budgets be allocated unevenly across different attention heads based on each head's varying importance?",
+      "difficulty": "semantic",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2407.11550v5"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2407.11550v5",
+          "title": "Ada-KV: Optimizing KV Cache Eviction by Adaptive Budget Allocation for Efficient LLM Inference",
+          "rrf_score": 0.032,
+          "vector_rank": 1,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2407.11550v5",
+          "title": "Ada-KV: Optimizing KV Cache Eviction by Adaptive Budget Allocation for Efficient LLM Inference",
+          "rrf_score": 0.0304,
+          "vector_rank": 10,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2305.17118v2",
+          "title": "Scissorhands: Exploiting the Persistence of Importance Hypothesis for LLM KV Cache Compression at Test Time",
+          "rrf_score": 0.0304,
+          "vector_rank": 9,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2407.11550v5",
+          "title": "Ada-KV: Optimizing KV Cache Eviction by Adaptive Budget Allocation for Efficient LLM Inference",
+          "rrf_score": 0.0295,
+          "vector_rank": 4,
+          "bm25_rank": 12
+        },
+        {
+          "arxiv_id": "2407.11550v5",
+          "title": "Ada-KV: Optimizing KV Cache Eviction by Adaptive Budget Allocation for Efficient LLM Inference",
+          "rrf_score": 0.0292,
+          "vector_rank": 18,
+          "bm25_rank": 1
+        }
+      ]
+    },
+    {
+      "question_id": "q24",
+      "question": "How can the right tokens to keep in the KV cache be identified by examining only the input prompt, before any tokens are generated?",
+      "difficulty": "semantic",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2404.14469v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2404.14469v1",
+          "title": "SnapKV: LLM Knows What You are Looking for Before Generation",
+          "rrf_score": 0.0318,
+          "vector_rank": 2,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2404.14469v1",
+          "title": "SnapKV: LLM Knows What You are Looking for Before Generation",
+          "rrf_score": 0.031,
+          "vector_rank": 6,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2310.01801v4",
+          "title": "Model Tells You What to Discard: Adaptive KV Cache Compression for LLMs",
+          "rrf_score": 0.0279,
+          "vector_rank": 5,
+          "bm25_rank": 20
+        },
+        {
+          "arxiv_id": "2310.01801v4",
+          "title": "Model Tells You What to Discard: Adaptive KV Cache Compression for LLMs",
+          "rrf_score": 0.0276,
+          "vector_rank": 15,
+          "bm25_rank": 10
+        },
+        {
+          "arxiv_id": "2311.18677v2",
+          "title": "Splitwise: Efficient generative LLM inference using phase splitting",
+          "rrf_score": 0.0275,
+          "vector_rank": 3,
+          "bm25_rank": 26
+        }
+      ]
+    },
+    {
+      "question_id": "q25",
+      "question": "How can KV caches across adjacent transformer layers be merged to reduce memory by exploiting their cross-layer similarity?",
+      "difficulty": "semantic",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2405.14366v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2405.14366v2",
+          "title": "MiniCache: KV Cache Compression in Depth Dimension for Large Language Models",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2405.14366v2",
+          "title": "MiniCache: KV Cache Compression in Depth Dimension for Large Language Models",
+          "rrf_score": 0.0313,
+          "vector_rank": 6,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2405.14366v2",
+          "title": "MiniCache: KV Cache Compression in Depth Dimension for Large Language Models",
+          "rrf_score": 0.0313,
+          "vector_rank": 5,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2405.14366v2",
+          "title": "MiniCache: KV Cache Compression in Depth Dimension for Large Language Models",
+          "rrf_score": 0.0312,
+          "vector_rank": 4,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2405.14366v2",
+          "title": "MiniCache: KV Cache Compression in Depth Dimension for Large Language Models",
+          "rrf_score": 0.0294,
+          "vector_rank": 10,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q26",
+      "question": "How can KV cache memory be reduced via low-rank compression that progressively adjusts the compression ratio across layers without retraining?",
+      "difficulty": "semantic",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2410.03111v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.0313,
+          "vector_rank": 7,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.0308,
+          "vector_rank": 8,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.0305,
+          "vector_rank": 6,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.0304,
+          "vector_rank": 9,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.0286,
+          "vector_rank": 1,
+          "bm25_rank": 22
+        }
+      ]
+    },
+    {
+      "question_id": "q27",
+      "question": "How does ChunkKV compress KV caches by preserving semantic chunks rather than evicting individual tokens?",
+      "difficulty": "specific",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2502.00299v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2502.00299v3",
+          "title": "ChunkKV: Semantic-Preserving KV Cache Compression for Efficient Long-Context LLM Inference",
+          "rrf_score": 0.0325,
+          "vector_rank": 2,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2502.00299v3",
+          "title": "ChunkKV: Semantic-Preserving KV Cache Compression for Efficient Long-Context LLM Inference",
+          "rrf_score": 0.032,
+          "vector_rank": 1,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2502.00299v3",
+          "title": "ChunkKV: Semantic-Preserving KV Cache Compression for Efficient Long-Context LLM Inference",
+          "rrf_score": 0.0317,
+          "vector_rank": 3,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2502.00299v3",
+          "title": "ChunkKV: Semantic-Preserving KV Cache Compression for Efficient Long-Context LLM Inference",
+          "rrf_score": 0.0313,
+          "vector_rank": 6,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2502.00299v3",
+          "title": "ChunkKV: Semantic-Preserving KV Cache Compression for Efficient Long-Context LLM Inference",
+          "rrf_score": 0.0305,
+          "vector_rank": 5,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q28",
+      "question": "How can a precomputed KV cache be transmitted over a network while adapting to varying available bandwidth?",
+      "difficulty": "semantic",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2310.07240v6"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2310.07240v6",
+          "title": "CacheGen: KV Cache Compression and Streaming for Fast Large Language Model Serving",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2310.07240v6",
+          "title": "CacheGen: KV Cache Compression and Streaming for Fast Large Language Model Serving",
+          "rrf_score": 0.0315,
+          "vector_rank": 2,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2310.07240v6",
+          "title": "CacheGen: KV Cache Compression and Streaming for Fast Large Language Model Serving",
+          "rrf_score": 0.0313,
+          "vector_rank": 6,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2310.07240v6",
+          "title": "CacheGen: KV Cache Compression and Streaming for Fast Large Language Model Serving",
+          "rrf_score": 0.0303,
+          "vector_rank": 8,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2310.07240v6",
+          "title": "CacheGen: KV Cache Compression and Streaming for Fast Large Language Model Serving",
+          "rrf_score": 0.0291,
+          "vector_rank": 5,
+          "bm25_rank": 13
+        }
+      ]
+    },
+    {
+      "question_id": "q29",
+      "question": "What does the 'heavy hitter' phenomenon in LLM attention say about which tokens to keep when evicting from the KV cache?",
+      "difficulty": "specific",
+      "topic": "kv-cache",
+      "gold_paper_ids": [
+        "2306.14048v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2310.01801v4",
+          "title": "Model Tells You What to Discard: Adaptive KV Cache Compression for LLMs",
+          "rrf_score": 0.0313,
+          "vector_rank": 6,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2306.14048v3",
+          "title": "H$_2$O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models",
+          "rrf_score": 0.0306,
+          "vector_rank": 4,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2306.14048v3",
+          "title": "H$_2$O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models",
+          "rrf_score": 0.0306,
+          "vector_rank": 7,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2406.02069v4",
+          "title": "PyramidKV: Dynamic KV Cache Compression based on Pyramidal Information Funneling",
+          "rrf_score": 0.0266,
+          "vector_rank": 27,
+          "bm25_rank": 6
+        },
+        {
+          "arxiv_id": "2502.00299v3",
+          "title": "ChunkKV: Semantic-Preserving KV Cache Compression for Efficient Long-Context LLM Inference",
+          "rrf_score": 0.0255,
+          "vector_rank": 44,
+          "bm25_rank": 3
+        }
+      ]
+    },
+    {
+      "question_id": "q30",
+      "question": "How can speculative decoding remain effective at large batch sizes, where its conventional wisdom suggests diminishing returns?",
+      "difficulty": "semantic",
+      "topic": "speculative-decoding",
+      "gold_paper_ids": [
+        "2408.11049v5"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2603.03251v3",
+          "title": "Speculative Speculative Decoding",
+          "rrf_score": 0.0308,
+          "vector_rank": 4,
+          "bm25_rank": 6
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.0302,
+          "vector_rank": 10,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2408.11049v5",
+          "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+          "rrf_score": 0.0298,
+          "vector_rank": 2,
+          "bm25_rank": 13
+        },
+        {
+          "arxiv_id": "2408.11049v5",
+          "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+          "rrf_score": 0.0282,
+          "vector_rank": 25,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2408.11049v5",
+          "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+          "rrf_score": 0.028,
+          "vector_rank": 12,
+          "bm25_rank": 11
+        }
+      ]
+    },
+    {
+      "question_id": "q31",
+      "question": "What problem does Hydra solve that the original Medusa decoding heads couldn't handle?",
+      "difficulty": "specific",
+      "topic": "speculative-decoding",
+      "gold_paper_ids": [
+        "2402.05109v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2402.05109v2",
+          "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+          "rrf_score": 0.0318,
+          "vector_rank": 5,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2402.05109v2",
+          "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+          "rrf_score": 0.0315,
+          "vector_rank": 3,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2402.05109v2",
+          "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+          "rrf_score": 0.0315,
+          "vector_rank": 4,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2402.05109v2",
+          "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+          "rrf_score": 0.0311,
+          "vector_rank": 1,
+          "bm25_rank": 8
+        },
+        {
+          "arxiv_id": "2402.05109v2",
+          "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+          "rrf_score": 0.0308,
+          "vector_rank": 8,
+          "bm25_rank": 2
+        }
+      ]
+    },
+    {
+      "question_id": "q32",
+      "question": "How does EAGLE-3 scale up speculative sampling training compared to EAGLE-2?",
+      "difficulty": "specific",
+      "topic": "speculative-decoding",
+      "gold_paper_ids": [
+        "2503.01840v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2503.01840v3",
+          "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+          "rrf_score": 0.0315,
+          "vector_rank": 2,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2503.01840v3",
+          "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+          "rrf_score": 0.0313,
+          "vector_rank": 5,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2503.01840v3",
+          "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+          "rrf_score": 0.0306,
+          "vector_rank": 4,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2503.01840v3",
+          "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+          "rrf_score": 0.0305,
+          "vector_rank": 11,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2406.16858v2",
+          "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+          "rrf_score": 0.0299,
+          "vector_rank": 8,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q33",
+      "question": "How can the draft model in speculative decoding be continuously updated to track the target model's behavior on actual deployed inputs?",
+      "difficulty": "semantic",
+      "topic": "speculative-decoding",
+      "gold_paper_ids": [
+        "2310.07177v4"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.0315,
+          "vector_rank": 6,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.0313,
+          "vector_rank": 1,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.0306,
+          "vector_rank": 2,
+          "bm25_rank": 9
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.0293,
+          "vector_rank": 13,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.0289,
+          "vector_rank": 18,
+          "bm25_rank": 2
+        }
+      ]
+    },
+    {
+      "question_id": "q34",
+      "question": "How can speculative decoding be improved by having the draft model predict the target model's internal feature representations instead of its tokens?",
+      "difficulty": "semantic",
+      "topic": "speculative-decoding",
+      "gold_paper_ids": [
+        "2401.15077v3"
+      ],
+      "recall_at_5": 0.0,
+      "recall_at_10": 0.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2603.03251v3",
+          "title": "Speculative Speculative Decoding",
+          "rrf_score": 0.0287,
+          "vector_rank": 21,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.0284,
+          "vector_rank": 11,
+          "bm25_rank": 10
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.028,
+          "vector_rank": 19,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2310.07177v4",
+          "title": "Online Speculative Decoding",
+          "rrf_score": 0.0272,
+          "vector_rank": 28,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2603.03251v3",
+          "title": "Speculative Speculative Decoding",
+          "rrf_score": 0.0267,
+          "vector_rank": 35,
+          "bm25_rank": 2
+        }
+      ]
+    },
+    {
+      "question_id": "q35",
+      "question": "What does FlashAttention-3 add over FlashAttention-2 to take advantage of Hopper-generation GPUs?",
+      "difficulty": "specific",
+      "topic": "attention-kernel",
+      "gold_paper_ids": [
+        "2407.08608v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2407.08608v2",
+          "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+          "rrf_score": 0.0323,
+          "vector_rank": 3,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2407.08608v2",
+          "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+          "rrf_score": 0.032,
+          "vector_rank": 1,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2407.08608v2",
+          "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+          "rrf_score": 0.031,
+          "vector_rank": 4,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2407.08608v2",
+          "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+          "rrf_score": 0.0302,
+          "vector_rank": 2,
+          "bm25_rank": 11
+        },
+        {
+          "arxiv_id": "2407.08608v2",
+          "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+          "rrf_score": 0.0302,
+          "vector_rank": 11,
+          "bm25_rank": 2
+        }
+      ]
+    },
+    {
+      "question_id": "q36",
+      "question": "How can attention computation be distributed across many GPUs for sequences too long to fit on any single GPU, with communication overlapping computation?",
+      "difficulty": "semantic",
+      "topic": "attention-kernel",
+      "gold_paper_ids": [
+        "2310.01889v4"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2403.02310v3",
+          "title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+          "rrf_score": 0.0286,
+          "vector_rank": 4,
+          "bm25_rank": 17
+        },
+        {
+          "arxiv_id": "2310.01889v4",
+          "title": "Ring Attention with Blockwise Transformers for Near-Infinite Context",
+          "rrf_score": 0.028,
+          "vector_rank": 14,
+          "bm25_rank": 9
+        },
+        {
+          "arxiv_id": "2403.02310v3",
+          "title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+          "rrf_score": 0.028,
+          "vector_rank": 10,
+          "bm25_rank": 13
+        },
+        {
+          "arxiv_id": "2311.09431v1",
+          "title": "Striped Attention: Faster Ring Attention for Causal Transformers",
+          "rrf_score": 0.0276,
+          "vector_rank": 7,
+          "bm25_rank": 19
+        },
+        {
+          "arxiv_id": "2310.01889v4",
+          "title": "Ring Attention with Blockwise Transformers for Near-Infinite Context",
+          "rrf_score": 0.0269,
+          "vector_rank": 31,
+          "bm25_rank": 3
+        }
+      ]
+    },
+    {
+      "question_id": "q37",
+      "question": "How can the load imbalance in causal attention be mitigated when distributing the attention computation across multiple devices?",
+      "difficulty": "semantic",
+      "topic": "attention-kernel",
+      "gold_paper_ids": [
+        "2311.09431v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2311.09431v1",
+          "title": "Striped Attention: Faster Ring Attention for Causal Transformers",
+          "rrf_score": 0.032,
+          "vector_rank": 4,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2311.09431v1",
+          "title": "Striped Attention: Faster Ring Attention for Causal Transformers",
+          "rrf_score": 0.032,
+          "vector_rank": 2,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2311.09431v1",
+          "title": "Striped Attention: Faster Ring Attention for Causal Transformers",
+          "rrf_score": 0.0315,
+          "vector_rank": 1,
+          "bm25_rank": 6
+        },
+        {
+          "arxiv_id": "2311.09431v1",
+          "title": "Striped Attention: Faster Ring Attention for Causal Transformers",
+          "rrf_score": 0.0313,
+          "vector_rank": 6,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2311.09431v1",
+          "title": "Striped Attention: Faster Ring Attention for Causal Transformers",
+          "rrf_score": 0.0313,
+          "vector_rank": 3,
+          "bm25_rank": 5
+        }
+      ]
+    },
+    {
+      "question_id": "q38",
+      "question": "How does Multi-Query Attention reduce memory bandwidth during incremental decoding by sharing key and value tensors across all attention heads?",
+      "difficulty": "specific",
+      "topic": "attention-kernel",
+      "gold_paper_ids": [
+        "1911.02150v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2211.05102v1",
+          "title": "Efficiently Scaling Transformer Inference",
+          "rrf_score": 0.032,
+          "vector_rank": 1,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.0315,
+          "vector_rank": 5,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "1911.02150v1",
+          "title": "Fast Transformer Decoding: One Write-Head is All You Need",
+          "rrf_score": 0.0311,
+          "vector_rank": 8,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2307.08691v1",
+          "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+          "rrf_score": 0.0301,
+          "vector_rank": 7,
+          "bm25_rank": 6
+        },
+        {
+          "arxiv_id": "2211.05102v1",
+          "title": "Efficiently Scaling Transformer Inference",
+          "rrf_score": 0.0286,
+          "vector_rank": 10,
+          "bm25_rank": 10
+        }
+      ]
+    },
+    {
+      "question_id": "q39",
+      "question": "How does SpQR keep difficult outlier weights at high precision in a sparse format while quantizing the bulk to very low bits?",
+      "difficulty": "specific",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2306.03078v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2306.03078v1",
+          "title": "SpQR: A Sparse-Quantized Representation for Near-Lossless LLM Weight Compression",
+          "rrf_score": 0.0323,
+          "vector_rank": 3,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2306.03078v1",
+          "title": "SpQR: A Sparse-Quantized Representation for Near-Lossless LLM Weight Compression",
+          "rrf_score": 0.032,
+          "vector_rank": 2,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2306.03078v1",
+          "title": "SpQR: A Sparse-Quantized Representation for Near-Lossless LLM Weight Compression",
+          "rrf_score": 0.0315,
+          "vector_rank": 5,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2306.03078v1",
+          "title": "SpQR: A Sparse-Quantized Representation for Near-Lossless LLM Weight Compression",
+          "rrf_score": 0.0307,
+          "vector_rank": 1,
+          "bm25_rank": 10
+        },
+        {
+          "arxiv_id": "2306.03078v1",
+          "title": "SpQR: A Sparse-Quantized Representation for Near-Lossless LLM Weight Compression",
+          "rrf_score": 0.0303,
+          "vector_rank": 6,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q40",
+      "question": "How can quantization parameters for very low-bit LLM compression be optimized via gradient descent rather than chosen heuristically?",
+      "difficulty": "semantic",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2308.13137v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2306.07629v4",
+          "title": "SqueezeLLM: Dense-and-Sparse Quantization",
+          "rrf_score": 0.0303,
+          "vector_rank": 6,
+          "bm25_rank": 6
+        },
+        {
+          "arxiv_id": "2306.07629v4",
+          "title": "SqueezeLLM: Dense-and-Sparse Quantization",
+          "rrf_score": 0.0291,
+          "vector_rank": 5,
+          "bm25_rank": 13
+        },
+        {
+          "arxiv_id": "2308.13137v3",
+          "title": "OmniQuant: Omnidirectionally Calibrated Quantization for Large Language Models",
+          "rrf_score": 0.029,
+          "vector_rank": 3,
+          "bm25_rank": 16
+        },
+        {
+          "arxiv_id": "2401.06118v4",
+          "title": "Extreme Compression of Large Language Models via Additive Quantization",
+          "rrf_score": 0.0287,
+          "vector_rank": 15,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2401.06118v4",
+          "title": "Extreme Compression of Large Language Models via Additive Quantization",
+          "rrf_score": 0.0279,
+          "vector_rank": 1,
+          "bm25_rank": 27
+        }
+      ]
+    },
+    {
+      "question_id": "q41",
+      "question": "What does QuIP# add over the original QuIP through Hadamard incoherence transforms and lattice codebooks?",
+      "difficulty": "specific",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2402.04396v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2402.04396v2",
+          "title": "QuIP#: Even Better LLM Quantization with Hadamard Incoherence and Lattice Codebooks",
+          "rrf_score": 0.0325,
+          "vector_rank": 2,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2402.04396v2",
+          "title": "QuIP#: Even Better LLM Quantization with Hadamard Incoherence and Lattice Codebooks",
+          "rrf_score": 0.0315,
+          "vector_rank": 5,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2402.04396v2",
+          "title": "QuIP#: Even Better LLM Quantization with Hadamard Incoherence and Lattice Codebooks",
+          "rrf_score": 0.0315,
+          "vector_rank": 4,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2402.04396v2",
+          "title": "QuIP#: Even Better LLM Quantization with Hadamard Incoherence and Lattice Codebooks",
+          "rrf_score": 0.0313,
+          "vector_rank": 1,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2402.04396v2",
+          "title": "QuIP#: Even Better LLM Quantization with Hadamard Incoherence and Lattice Codebooks",
+          "rrf_score": 0.0306,
+          "vector_rank": 3,
+          "bm25_rank": 8
+        }
+      ]
+    },
+    {
+      "question_id": "q42",
+      "question": "How does SqueezeLLM combine dense low-bit quantization with a sparse outlier representation?",
+      "difficulty": "specific",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2306.07629v4"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2306.07629v4",
+          "title": "SqueezeLLM: Dense-and-Sparse Quantization",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2306.07629v4",
+          "title": "SqueezeLLM: Dense-and-Sparse Quantization",
+          "rrf_score": 0.0323,
+          "vector_rank": 2,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2306.07629v4",
+          "title": "SqueezeLLM: Dense-and-Sparse Quantization",
+          "rrf_score": 0.0306,
+          "vector_rank": 4,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2306.07629v4",
+          "title": "SqueezeLLM: Dense-and-Sparse Quantization",
+          "rrf_score": 0.0297,
+          "vector_rank": 10,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2306.03078v1",
+          "title": "SpQR: A Sparse-Quantized Representation for Near-Lossless LLM Weight Compression",
+          "rrf_score": 0.0292,
+          "vector_rank": 6,
+          "bm25_rank": 11
+        }
+      ]
+    },
+    {
+      "question_id": "q43",
+      "question": "How can language model weights be compressed extremely aggressively to 2-3 bits via additive multi-codebook quantization?",
+      "difficulty": "semantic",
+      "topic": "quantization",
+      "gold_paper_ids": [
+        "2401.06118v4"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2401.06118v4",
+          "title": "Extreme Compression of Large Language Models via Additive Quantization",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2401.06118v4",
+          "title": "Extreme Compression of Large Language Models via Additive Quantization",
+          "rrf_score": 0.032,
+          "vector_rank": 3,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2401.06118v4",
+          "title": "Extreme Compression of Large Language Models via Additive Quantization",
+          "rrf_score": 0.0315,
+          "vector_rank": 2,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2401.06118v4",
+          "title": "Extreme Compression of Large Language Models via Additive Quantization",
+          "rrf_score": 0.0304,
+          "vector_rank": 9,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2210.17323v2",
+          "title": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers",
+          "rrf_score": 0.0303,
+          "vector_rank": 5,
+          "bm25_rank": 7
+        }
+      ]
+    },
+    {
+      "question_id": "q44",
+      "question": "How can the prompt-processing and token-generation phases of LLM inference be split onto different types of hardware to optimize for cost?",
+      "difficulty": "semantic",
+      "topic": "serving",
+      "gold_paper_ids": [
+        "2311.18677v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2311.18677v2",
+          "title": "Splitwise: Efficient generative LLM inference using phase splitting",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2311.18677v2",
+          "title": "Splitwise: Efficient generative LLM inference using phase splitting",
+          "rrf_score": 0.0323,
+          "vector_rank": 2,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2311.18677v2",
+          "title": "Splitwise: Efficient generative LLM inference using phase splitting",
+          "rrf_score": 0.0315,
+          "vector_rank": 4,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2311.18677v2",
+          "title": "Splitwise: Efficient generative LLM inference using phase splitting",
+          "rrf_score": 0.0308,
+          "vector_rank": 3,
+          "bm25_rank": 7
+        },
+        {
+          "arxiv_id": "2311.18677v2",
+          "title": "Splitwise: Efficient generative LLM inference using phase splitting",
+          "rrf_score": 0.0285,
+          "vector_rank": 16,
+          "bm25_rank": 5
+        }
+      ]
+    },
+    {
+      "question_id": "q45",
+      "question": "How can statistical multiplexing across model parallelism replicas reduce tail latency in deep learning serving?",
+      "difficulty": "semantic",
+      "topic": "serving",
+      "gold_paper_ids": [
+        "2302.11665v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2302.11665v2",
+          "title": "AlpaServe: Statistical Multiplexing with Model Parallelism for Deep Learning Serving",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2302.11665v2",
+          "title": "AlpaServe: Statistical Multiplexing with Model Parallelism for Deep Learning Serving",
+          "rrf_score": 0.032,
+          "vector_rank": 3,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2302.11665v2",
+          "title": "AlpaServe: Statistical Multiplexing with Model Parallelism for Deep Learning Serving",
+          "rrf_score": 0.0313,
+          "vector_rank": 5,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2302.11665v2",
+          "title": "AlpaServe: Statistical Multiplexing with Model Parallelism for Deep Learning Serving",
+          "rrf_score": 0.0303,
+          "vector_rank": 8,
+          "bm25_rank": 4
+        },
+        {
+          "arxiv_id": "2302.11665v2",
+          "title": "AlpaServe: Statistical Multiplexing with Model Parallelism for Deep Learning Serving",
+          "rrf_score": 0.0301,
+          "vector_rank": 7,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q46",
+      "question": "How can the throughput of LLM serving be improved while sticking to latency SLAs by carefully scheduling prefill chunks alongside ongoing decode work?",
+      "difficulty": "semantic",
+      "topic": "serving",
+      "gold_paper_ids": [
+        "2403.02310v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2403.02310v3",
+          "title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2403.02310v3",
+          "title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+          "rrf_score": 0.0323,
+          "vector_rank": 2,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2401.09670v3",
+          "title": "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving",
+          "rrf_score": 0.0313,
+          "vector_rank": 5,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2401.09670v3",
+          "title": "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving",
+          "rrf_score": 0.0298,
+          "vector_rank": 3,
+          "bm25_rank": 12
+        },
+        {
+          "arxiv_id": "2403.02310v3",
+          "title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+          "rrf_score": 0.0295,
+          "vector_rank": 12,
+          "bm25_rank": 4
+        }
+      ]
+    },
+    {
+      "question_id": "q47",
+      "question": "How does DeepSpeed-FastGen use Dynamic SplitFuse to improve throughput for long-prompt LLM generation workloads?",
+      "difficulty": "specific",
+      "topic": "serving",
+      "gold_paper_ids": [
+        "2401.08671v1"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2401.08671v1",
+          "title": "DeepSpeed-FastGen: High-throughput Text Generation for LLMs via MII and DeepSpeed-Inference",
+          "rrf_score": 0.0328,
+          "vector_rank": 1,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2401.08671v1",
+          "title": "DeepSpeed-FastGen: High-throughput Text Generation for LLMs via MII and DeepSpeed-Inference",
+          "rrf_score": 0.0317,
+          "vector_rank": 3,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2401.08671v1",
+          "title": "DeepSpeed-FastGen: High-throughput Text Generation for LLMs via MII and DeepSpeed-Inference",
+          "rrf_score": 0.0315,
+          "vector_rank": 2,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2401.08671v1",
+          "title": "DeepSpeed-FastGen: High-throughput Text Generation for LLMs via MII and DeepSpeed-Inference",
+          "rrf_score": 0.0315,
+          "vector_rank": 5,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2401.08671v1",
+          "title": "DeepSpeed-FastGen: High-throughput Text Generation for LLMs via MII and DeepSpeed-Inference",
+          "rrf_score": 0.0312,
+          "vector_rank": 4,
+          "bm25_rank": 4
+        }
+      ]
+    },
+    {
+      "question_id": "q48",
+      "question": "How can self-attention complexity be reduced from quadratic to linear via low-rank projections of the key and value matrices?",
+      "difficulty": "semantic",
+      "topic": "long-context",
+      "gold_paper_ids": [
+        "2006.04768v3"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2006.04768v3",
+          "title": "Linformer: Self-Attention with Linear Complexity",
+          "rrf_score": 0.0325,
+          "vector_rank": 1,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2108.09084v6",
+          "title": "Fastformer: Additive Attention Can Be All You Need",
+          "rrf_score": 0.031,
+          "vector_rank": 6,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2007.14062v2",
+          "title": "Big Bird: Transformers for Longer Sequences",
+          "rrf_score": 0.0284,
+          "vector_rank": 3,
+          "bm25_rank": 20
+        },
+        {
+          "arxiv_id": "2410.03111v1",
+          "title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+          "rrf_score": 0.028,
+          "vector_rank": 10,
+          "bm25_rank": 13
+        },
+        {
+          "arxiv_id": "2006.04768v3",
+          "title": "Linformer: Self-Attention with Linear Complexity",
+          "rrf_score": 0.028,
+          "vector_rank": 18,
+          "bm25_rank": 6
+        }
+      ]
+    },
+    {
+      "question_id": "q49",
+      "question": "How can attention complexity be reduced to linear time by approximating the softmax through positive random feature maps?",
+      "difficulty": "semantic",
+      "topic": "long-context",
+      "gold_paper_ids": [
+        "2009.14794v4"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2102.03902v3",
+          "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+          "rrf_score": 0.032,
+          "vector_rank": 3,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2009.14794v4",
+          "title": "Rethinking Attention with Performers",
+          "rrf_score": 0.0315,
+          "vector_rank": 2,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2009.14794v4",
+          "title": "Rethinking Attention with Performers",
+          "rrf_score": 0.0313,
+          "vector_rank": 5,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2102.03902v3",
+          "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+          "rrf_score": 0.0303,
+          "vector_rank": 1,
+          "bm25_rank": 12
+        },
+        {
+          "arxiv_id": "2009.14794v4",
+          "title": "Rethinking Attention with Performers",
+          "rrf_score": 0.0296,
+          "vector_rank": 8,
+          "bm25_rank": 7
+        }
+      ]
+    },
+    {
+      "question_id": "q50",
+      "question": "How does BigBird combine random, global, and local attention patterns to handle long sequences while remaining a universal approximator?",
+      "difficulty": "specific",
+      "topic": "long-context",
+      "gold_paper_ids": [
+        "2007.14062v2"
+      ],
+      "recall_at_5": 1.0,
+      "recall_at_10": 1.0,
+      "top_5_papers": [
+        {
+          "arxiv_id": "2009.06732v3",
+          "title": "Efficient Transformers: A Survey",
+          "rrf_score": 0.0325,
+          "vector_rank": 2,
+          "bm25_rank": 1
+        },
+        {
+          "arxiv_id": "2007.14062v2",
+          "title": "Big Bird: Transformers for Longer Sequences",
+          "rrf_score": 0.0313,
+          "vector_rank": 3,
+          "bm25_rank": 5
+        },
+        {
+          "arxiv_id": "2004.05150v2",
+          "title": "Longformer: The Long-Document Transformer",
+          "rrf_score": 0.0311,
+          "vector_rank": 7,
+          "bm25_rank": 2
+        },
+        {
+          "arxiv_id": "2007.14062v2",
+          "title": "Big Bird: Transformers for Longer Sequences",
+          "rrf_score": 0.031,
+          "vector_rank": 6,
+          "bm25_rank": 3
+        },
+        {
+          "arxiv_id": "2007.14062v2",
+          "title": "Big Bird: Transformers for Longer Sequences",
+          "rrf_score": 0.0309,
+          "vector_rank": 1,
+          "bm25_rank": 9
+        }
+      ]
+    }
+  ]
+}

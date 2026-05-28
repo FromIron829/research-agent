@@ -1,0 +1,1003 @@
+[
+  {
+    "candidate_id": "c001",
+    "question": "Can you find a paper about training transformers with 1-bit weights that shows comparable performance to standard FP16 models?",
+    "gold_paper_ids": [
+      "2310.11453v1"
+    ],
+    "topic": "1-bit quantization, transformer training",
+    "difficulty": "specific",
+    "rationale": "This question uses the rare and specific \"1-bit weights\" terminology from the paper while framing it as a natural search query, making it highly distinctive and unlikely to match other papers on quantization.",
+    "source_title": "BitNet: Scaling 1-bit Transformers for Large Language Models",
+    "source_abstrat": "The increasing size of large language models has posed challenges for deployment and raised concerns about environmental impact due to high energy consumption. In this work, we introduce BitNet, a scalable and stable 1-bit Transformer architecture designed for large language models. Specifically, we introduce BitLinear as a drop-in replacement of the nn.Linear layer in order to train 1-bit weights from scratch. Experimental results on language modeling show that BitNet achieves competitive performance while substantially reducing memory footprint and energy consumption, compared to state-of-the-art 8-bit quantization methods and FP16 Transformer baselines. Furthermore, BitNet exhibits a scaling law akin to full-precision Transformers, suggesting its potential for effective scaling to even larger language models while maintaining efficiency and performance benefits.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c002",
+    "question": "How can you implement self-attention without storing the full attention matrix in memory?",
+    "gold_paper_ids": [
+      "2112.05682v3"
+    ],
+    "topic": "memory-efficient attention",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core insight of the paper (avoiding quadratic memory for attention) without using the paper's specific complexity notation or terminology, testing whether a retrieval system can match the fundamental contribution rather than exact phrasing.",
+    "source_title": "Self-attention Does Not Need $O(n^2)$ Memory",
+    "source_abstrat": "We present a very simple algorithm for attention that requires $O(1)$ memory with respect to sequence length and an extension to self-attention that requires $O(\\log n)$ memory. This is in contrast with the frequently stated belief that self-attention requires $O(n^2)$ memory. While the time complexity is still $O(n^2)$, device memory rather than compute capability is often the limiting factor on modern accelerators. Thus, reducing the memory requirements of attention allows processing of longer sequences than might otherwise be feasible. We provide a practical implementation for accelerators that requires $O(\\sqrt{n})$ memory, is numerically stable, and is within a few percent of the runtime of the standard implementation of attention. We also demonstrate how to differentiate the function while remaining memory-efficient. For sequence length 16384, the memory overhead of self-attention is reduced by 59X for inference and by 32X for differentiation.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c003",
+    "question": "What techniques does this paper use to allow serving very large language models with long context windows while keeping per-token latency low?",
+    "gold_paper_ids": [
+      "2211.05102v1"
+    ],
+    "topic": "Inference optimization, context scaling",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core problem and solution (partitioning + multiquery attention) without using distinctive terms like \"TPU v4\" or \"multiquery attention,\" testing semantic understanding of the approach.",
+    "source_title": "Efficiently Scaling Transformer Inference",
+    "source_abstrat": "We study the problem of efficient generative inference for Transformer models, in one of its most challenging settings: large deep models, with tight latency targets and long sequence lengths. Better understanding of the engineering tradeoffs for inference for large Transformer-based models is important as use cases of these models are growing rapidly throughout application areas. We develop a simple analytical model for inference efficiency to select the best multi-dimensional partitioning techniques optimized for TPU v4 slices based on the application requirements. We combine these with a suite of low-level optimizations to achieve a new Pareto frontier on the latency and model FLOPS utilization (MFU) tradeoffs on 500B+ parameter models that outperforms the FasterTransformer suite of benchmarks. We further show that with appropriate partitioning, the lower memory requirements of multiquery attention (i.e. multiple query heads share single key/value head) enables scaling up to 32x larger context lengths. Finally, we achieve a low-batch-size latency of 29ms per token during generation (using int8 weight quantization) and a 76% MFU during large-batch-size processing of input tokens, while supporting a long 2048-token context length on the PaLM 540B parameter model.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c004",
+    "question": "How can you make a language model handle text sequences much longer than what it was trained on without retraining it?",
+    "gold_paper_ids": [
+      "2309.17453v4"
+    ],
+    "topic": "length generalization",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core contribution—enabling length extrapolation without fine-tuning—paraphrased to avoid paper-specific terms like \"StreamingLLM\" or \"attention sink,\" testing if retrieval can find this paper from the conceptual problem it solves.",
+    "source_title": "Efficient Streaming Language Models with Attention Sinks",
+    "source_abstrat": "Deploying Large Language Models (LLMs) in streaming applications such as multi-round dialogue, where long interactions are expected, is urgently needed but poses two major challenges. Firstly, during the decoding stage, caching previous tokens' Key and Value states (KV) consumes extensive memory. Secondly, popular LLMs cannot generalize to longer texts than the training sequence length. Window attention, where only the most recent KVs are cached, is a natural approach -- but we show that it fails when the text length surpasses the cache size. We observe an interesting phenomenon, namely attention sink, that keeping the KV of initial tokens will largely recover the performance of window attention. In this paper, we first demonstrate that the emergence of attention sink is due to the strong attention scores towards initial tokens as a \"sink\" even if they are not semantically important. Based on the above analysis, we introduce StreamingLLM, an efficient framework that enables LLMs trained with a finite length attention window to generalize to infinite sequence lengths without any fine-tuning. We show that StreamingLLM can enable Llama-2, MPT, Falcon, and Pythia to perform stable and efficient language modeling with up to 4 million tokens and more. In addition, we discover that adding a placeholder token as a dedicated attention sink during pre-training can further improve streaming deployment. In streaming settings, StreamingLLM outperforms the sliding window recomputation baseline by up to 22.2x speedup. Code and datasets are provided at https://github.com/mit-han-lab/streaming-llm.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c005",
+    "question": "Can I compress a 175B parameter language model down to 3-4 bit weights in a few hours without significant accuracy loss?",
+    "gold_paper_ids": [
+      "2210.17323v2"
+    ],
+    "topic": "weight quantization post-training",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core practical contribution of GPTQ (fast, accurate quantization of massive LLMs to low bitwidths) without using the paper's distinctive acronym or exact phrasing, and a researcher seeking this capability would naturally find this paper.",
+    "source_title": "GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformers",
+    "source_abstrat": "Generative Pre-trained Transformer models, known as GPT or OPT, set themselves apart through breakthrough performance across complex language modelling tasks, but also by their extremely high computational and storage costs. Specifically, due to their massive size, even inference for large, highly-accurate GPT models may require multiple performant GPUs, which limits the usability of such models. While there is emerging work on relieving this pressure via model compression, the applicability and performance of existing compression techniques is limited by the scale and complexity of GPT models. In this paper, we address this challenge, and propose GPTQ, a new one-shot weight quantization method based on approximate second-order information, that is both highly-accurate and highly-efficient. Specifically, GPTQ can quantize GPT models with 175 billion parameters in approximately four GPU hours, reducing the bitwidth down to 3 or 4 bits per weight, with negligible accuracy degradation relative to the uncompressed baseline. Our method more than doubles the compression gains relative to previously-proposed one-shot quantization methods, preserving accuracy, allowing us for the first time to execute an 175 billion-parameter model inside a single GPU for generative inference. Moreover, we also show that our method can still provide reasonable accuracy in the extreme quantization regime, in which weights are quantized to 2-bit or even ternary quantization levels. We show experimentally that these improvements can be leveraged for end-to-end inference speedups over FP16, of around 3.25x when using high-end GPUs (NVIDIA A100) and 4.5x when using more cost-effective ones (NVIDIA A6000). The implementation is available at https://github.com/IST-DASLab/gptq.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c006",
+    "question": "How can you reduce the memory overhead of attention in transformers from quadratic to linear complexity when handling very long sequences?",
+    "gold_paper_ids": [
+      "2007.14062v2"
+    ],
+    "topic": "sparse attention, long sequences",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core technical contribution (sparsifying attention to achieve linear complexity) without using the paper's title or distinctive terms like \"BigBird,\" making it a semantic retrieval test that researchers would naturally ask when seeking solutions to transformer scalability.",
+    "source_title": "Big Bird: Transformers for Longer Sequences",
+    "source_abstrat": "Transformers-based models, such as BERT, have been one of the most successful deep learning models for NLP. Unfortunately, one of their core limitations is the quadratic dependency (mainly in terms of memory) on the sequence length due to their full attention mechanism. To remedy this, we propose, BigBird, a sparse attention mechanism that reduces this quadratic dependency to linear. We show that BigBird is a universal approximator of sequence functions and is Turing complete, thereby preserving these properties of the quadratic, full attention model. Along the way, our theoretical analysis reveals some of the benefits of having $O(1)$ global tokens (such as CLS), that attend to the entire sequence as part of the sparse attention mechanism. The proposed sparse attention can handle sequences of length up to 8x of what was previously possible using similar hardware. As a consequence of the capability to handle longer context, BigBird drastically improves performance on various NLP tasks such as question answering and summarization. We also propose novel applications to genomics data.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c007",
+    "question": "I need to process documents with thousands of tokens but the standard transformer's attention is too slow. What approach uses a combination of local and global attention patterns to handle this?",
+    "gold_paper_ids": [
+      "2004.05150v2"
+    ],
+    "topic": "long sequence attention",
+    "difficulty": "specific",
+    "rationale": "This question uses the specific architectural feature (local + global attention) that distinguishes Longformer from other long-document transformers, making it a precise retrieval target without verbatim phrase overlap.",
+    "source_title": "Longformer: The Long-Document Transformer",
+    "source_abstrat": "Transformer-based models are unable to process long sequences due to their self-attention operation, which scales quadratically with the sequence length. To address this limitation, we introduce the Longformer with an attention mechanism that scales linearly with sequence length, making it easy to process documents of thousands of tokens or longer. Longformer's attention mechanism is a drop-in replacement for the standard self-attention and combines a local windowed attention with a task motivated global attention. Following prior work on long-sequence transformers, we evaluate Longformer on character-level language modeling and achieve state-of-the-art results on text8 and enwik8. In contrast to most prior work, we also pretrain Longformer and finetune it on a variety of downstream tasks. Our pretrained Longformer consistently outperforms RoBERTa on long document tasks and sets new state-of-the-art results on WikiHop and TriviaQA. We finally introduce the Longformer-Encoder-Decoder (LED), a Longformer variant for supporting long document generative sequence-to-sequence tasks, and demonstrate its effectiveness on the arXiv summarization dataset.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c008",
+    "question": "How can you reduce the memory requirements of KV caching for LLMs when dealing with very long input sequences without requiring model retraining?",
+    "gold_paper_ids": [
+      "2405.14366v2"
+    ],
+    "topic": "KV cache compression",
+    "difficulty": "semantic",
+    "rationale": "This question asks about the core practical problem MiniCache solves—memory-efficient KV caching for long contexts in a training-free manner—using domain language but avoiding the paper's specific approach (depth-wise compression, magnitude-direction disentanglement).",
+    "source_title": "MiniCache: KV Cache Compression in Depth Dimension for Large Language Models",
+    "source_abstrat": "A critical approach for efficiently deploying computationally demanding large language models (LLMs) is Key-Value (KV) caching. The KV cache stores key-value states of previously generated tokens, significantly reducing the need for repetitive computations and thereby lowering latency in autoregressive generation. However, the size of the KV cache grows linearly with sequence length, posing challenges for applications requiring long context input and extensive sequence generation. In this paper, we present a simple yet effective approach, called MiniCache, to compress the KV cache across layers from a novel depth perspective, significantly reducing the memory footprint for LLM inference. Our approach is based on the observation that KV cache states exhibit high similarity between the adjacent layers in the middle-to-deep portion of LLMs. To facilitate merging, we propose disentangling the states into the magnitude and direction components, interpolating the directions of the state vectors while preserving their lengths unchanged. Furthermore, we introduce a token retention strategy to keep highly distinct state pairs unmerged, thus preserving the information with minimal additional storage overhead. Our MiniCache is training-free and general, complementing existing KV cache compression strategies, such as quantization and sparsity. We conduct a comprehensive evaluation of MiniCache utilizing various models including LLaMA-2, LLaMA-3, Phi-3, Mistral, and Mixtral across multiple benchmarks, demonstrating its exceptional performance in achieving superior compression ratios and high throughput. On the ShareGPT dataset, LLaMA-2-7B with 4-bit MiniCache achieves a remarkable compression ratio of up to 5.02x, enhances inference throughput by approximately 5x, and reduces the memory footprint by 41% compared to the FP16 full cache baseline, all while maintaining near-lossless performance.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c009",
+    "question": "How does using a recurrent model as a draft generator compare to other approaches for speeding up LLM token generation?",
+    "gold_paper_ids": [
+      "2403.09919v5"
+    ],
+    "topic": "speculative decoding, draft models",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core technical contribution (RNN-based drafting) without using the paper's distinctive name, testing whether retrieval can identify this work by its methodological approach rather than its title.",
+    "source_title": "Recurrent Drafter for Fast Speculative Decoding in Large Language Models",
+    "source_abstrat": "We present Recurrent Drafter (ReDrafter), an advanced speculative decoding approach that achieves state-of-the-art speedup for large language models (LLMs) inference. The performance gains are driven by three key aspects: (1) leveraging a recurrent neural network (RNN) as the draft model conditioning on LLM's hidden states, (2) applying a dynamic tree attention algorithm over beam search results to eliminate duplicated prefixes in candidate sequences, and (3) training through knowledge distillation from the LLM. ReDrafter accelerates Vicuna inference in MT-Bench by up to 2.8x with a PyTorch implementation on Nvidia H100 GPUs. To demonstrate its practicality in real environments, we also validated its effectiveness for on-device applications by implementing the approach in MLX and benchmarking performance on Metal GPUs in Apple Silicon chips, achieving up to 2.3x speedup.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c010",
+    "question": "How can you make draft tree structure adapt based on what's already been generated, rather than keeping it fixed?",
+    "gold_paper_ids": [
+      "2406.16858v2"
+    ],
+    "topic": "dynamic draft trees",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core contribution (context-aware dynamic draft trees) without using EAGLE-2's distinctive name or technical jargon, testing if a searcher understands the conceptual advance from static to adaptive tree structures.",
+    "source_title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+    "source_abstrat": "Inference with modern Large Language Models (LLMs) is expensive and time-consuming, and speculative sampling has proven to be an effective solution. Most speculative sampling methods such as EAGLE use a static draft tree, implicitly assuming that the acceptance rate of draft tokens depends only on their position. Interestingly, we found that the acceptance rate of draft tokens is also context-dependent. In this paper, building upon EAGLE, we propose EAGLE-2, which introduces a new technique of context-aware dynamic draft tree into drafting modeling. This improvement leverages the fact that the draft model of EAGLE is well-calibrated: the confidence scores from the draft model approximate acceptance rates with small errors. We conducted extensive evaluations on three series of LLMs and six tasks, with EAGLE-2 achieving speedup ratios 3.05x-4.26x, which is 20%-40% faster than EAGLE-1. EAGLE-2 also ensures that the distribution of the generated text remains unchanged, making it a lossless acceleration algorithm.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c011",
+    "question": "How does CacheGen handle varying network conditions when loading pre-computed attention states over the network?",
+    "gold_paper_ids": [
+      "2310.07240v6"
+    ],
+    "topic": "KV cache compression",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core contribution (adaptive compression for bandwidth changes) without using distinctive terms like \"KV cache\" or \"compression level,\" requiring understanding of the system's bandwidth-aware design.",
+    "source_title": "CacheGen: KV Cache Compression and Streaming for Fast Large Language Model Serving",
+    "source_abstrat": "As large language models (LLMs) take on complex tasks, their inputs are supplemented with longer contexts that incorporate domain knowledge. Yet using long contexts is challenging, as nothing can be generated until the whole context is processed by the LLM. While the context-processing delay can be reduced by reusing the KV cache of a context across different inputs, fetching the KV cache, which contains large tensors, over the network can cause high extra network delays.\n  CacheGen is a fast context-loading module for LLM systems. First, CacheGen uses a custom tensor encoder, leveraging KV cache's distributional properties to encode a KV cache into more compact bitstream representations with negligible decoding overhead, to save bandwidth usage. Second, CacheGen adapts the compression level of different parts of a KV cache to cope with changes in available bandwidth, in order to maintain low context-loading delay and high generation quality. % When available bandwidth drops, CacheGen may raise the compression level for a part of the context or recompute its KV cache on the fly. We test CacheGen on popular LLMs and datasets. Compared to the recent systems that reuse the KV cache, CacheGen reduces the KV cache size by 3.5-4.3x and the total delay in fetching and processing contexts by 3.2-3.7x with negligible impact on the LLM response quality. Our code is at: https://github.com/UChi-JCL/CacheGen.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c012",
+    "question": "How can you speed up LLM token generation without sacrificing output quality or using approximations?",
+    "gold_paper_ids": [
+      "2312.12728v3"
+    ],
+    "topic": "token generation speedup",
+    "difficulty": "semantic",
+    "rationale": "This paraphrases the paper's core contribution (lossless acceleration via multi-branch prediction) without using distinctive terms like \"lookahead,\" \"Trie,\" or \"multi-branch,\" testing semantic understanding of the efficiency-accuracy tradeoff.",
+    "source_title": "Lookahead: An Inference Acceleration Framework for Large Language Model with Lossless Generation Accuracy",
+    "source_abstrat": "As Large Language Models (LLMs) have made significant advancements across various tasks, such as question answering, translation, text summarization, and dialogue systems, the need for accuracy in information becomes crucial, especially for serious financial products serving billions of users like Alipay. However, for a real-world product serving millions of users, the inference speed of LLMs becomes a critical factor compared to a mere experimental model.\n  Hence, this paper presents a generic framework for accelerating the inference process, resulting in a substantial increase in speed and cost reduction for our LLM-based scenarios, with lossless generation accuracy. In the traditional inference process, each token is generated sequentially by the LLM, leading to a time consumption proportional to the number of generated tokens. To enhance this process, our framework, named \\textit{lookahead}, introduces a \\textit{multi-branch} strategy. Instead of generating a single token at a time, we propose a Trie-based retrieval and verification mechanism to be able to accept several tokens at a forward step. Our strategy offers two distinct advantages: (1) it guarantees absolute correctness of the output, avoiding any approximation algorithms, and (2) the worst-case performance of our approach is equivalent to the conventional process. We conduct extensive experiments to demonstrate the significant improvements achieved by applying our inference acceleration framework. Our framework is widely deployed in Alipay since April 2023, and obtain remarkable 2.66x to 6.26x speedup. Our code is available at https://github.com/alipay/PainlessInferenceAcceleration.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c013",
+    "question": "How can you schedule batched LLM inference requests to maximize throughput without adding significant latency to individual requests?",
+    "gold_paper_ids": [
+      "2403.02310v3"
+    ],
+    "topic": "scheduling inference batching",
+    "difficulty": "semantic",
+    "rationale": "This captures the core problem the paper addresses—the throughput-latency tradeoff in batched serving—without using the paper's distinctive terminology like \"chunked-prefills\" or \"stall-free schedules.\"",
+    "source_title": "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve",
+    "source_abstrat": "Each LLM serving request goes through two phases. The first is prefill which processes the entire input prompt and produces the first output token and the second is decode which generates the rest of output tokens, one-at-a-time. Prefill iterations have high latency but saturate GPU compute due to parallel processing of the input prompt. In contrast, decode iterations have low latency but also low compute utilization because a decode iteration processes only a single token per request. This makes batching highly effective for decodes and consequently for overall throughput. However, batching multiple requests leads to an interleaving of prefill and decode iterations which makes it challenging to achieve both high throughput and low latency.\n  We introduce an efficient LLM inference scheduler, Sarathi-Serve, to address this throughput-latency tradeoff. Sarathi-Serve introduces chunked-prefills which splits a prefill request into near equal sized chunks and creates stall-free schedules that adds new requests in a batch without pausing ongoing decodes. Stall-free scheduling unlocks the opportunity to improve throughput with large batch sizes while minimizing the effect of batching on latency. Furthermore, uniform batches in Sarathi-Serve ameliorate the imbalance between iterations resulting in minimal pipeline bubbles.\n  Our techniques yield significant improvements in inference performance across models and hardware under tail latency constraints. For Mistral-7B on single A100 GPUs, we achieve 2.6x higher serving capacity and up to 3.7x higher serving capacity for the Yi-34B model on two A100 GPUs as compared to vLLM. When used with pipeline parallelism on Falcon-180B, Sarathi-Serve provides up to 5.6x gain in the end-to-end serving capacity. The source code for Sarathi-Serve is available at https://github.com/microsoft/sarathi-serve.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c014",
+    "question": "How can we use quantized draft models with the same architecture as the target model to speed up token generation in long-context scenarios?",
+    "gold_paper_ids": [
+      "2502.10424v1"
+    ],
+    "topic": "speculative decoding, quantization",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core contribution (using a quantized same-architecture draft model for speedup) without using the paper's distinctive term \"QuantSpec\" or key acronyms like \"KV cache,\" allowing a researcher to formulate this naturally.",
+    "source_title": "QuantSpec: Self-Speculative Decoding with Hierarchical Quantized KV Cache",
+    "source_abstrat": "Large Language Models (LLMs) are increasingly being deployed on edge devices for long-context settings, creating a growing need for fast and efficient long-context inference. In these scenarios, the Key-Value (KV) cache is the primary bottleneck in terms of both GPU memory and latency, as the full KV cache must be loaded for each decoding step. While speculative decoding is a widely accepted technique to accelerate autoregressive decoding, existing methods often struggle to achieve significant speedups due to inefficient KV cache optimization strategies and result in low acceptance rates. To address these challenges, we propose a novel self-speculative decoding framework, QuantSpec, where the draft model shares the architecture of the target model but employs a hierarchical 4-bit quantized KV cache and 4-bit quantized weights for acceleration. QuantSpec maintains high acceptance rates ($>$90%) and reliably provides consistent end-to-end speedups upto $\\sim2.5\\times$, outperforming other self-speculative decoding methods that use sparse KV cache for long-context LLM inference. QuantSpec also reduces the memory requirements by $\\sim 1.3\\times$ compared to these alternatives.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c015",
+    "question": "How does speculative decoding performance change when we increase batch size for long-context request serving, and what hardware bottlenecks need to be addressed?",
+    "gold_paper_ids": [
+      "2408.11049v5"
+    ],
+    "topic": "speculative decoding batch size",
+    "difficulty": "semantic",
+    "rationale": "Directly addresses the paper's core contribution—challenging the conventional assumption that SD only works at small batch sizes and exploring how bottlenecks shift with scale—without lifting key terminology.",
+    "source_title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+    "source_abstrat": "Large Language Models (LLMs) have become more prevalent in long-context applications such as interactive chatbots, document analysis, and agent workflows, but it is challenging to serve long-context requests with low latency and high throughput. Speculative decoding (SD) is a widely used technique to reduce latency losslessly, but the conventional wisdom suggests that its efficacy is limited to small batch sizes. In MagicDec, we show that surprisingly SD can achieve speedup even for a high throughput inference regime for moderate to long sequences. More interestingly, an intelligent drafting strategy can achieve better speedup with increasing batch size based on our rigorous analysis. MagicDec first identifies the bottleneck shifts with increasing batch size and sequence length, and uses these insights to deploy SD more effectively for high throughput inference. We leverage draft model with sparse KV cache to address the KV bottleneck, which scales with both sequence length and batch size. Additionally, we propose a theoretical model to select the optimal drafting strategy for maximum speedup. Our work highlights the broad applicability of speculative decoding in long-context serving, as it can enhance throughput and reduce latency without compromising accuracy. For moderate to long sequences, we demonstrate up to 2.51x speedup for Llama3.1-8B when serving batch sizes ranging from 32 to 256 on various types of hardware and tasks.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c016",
+    "question": "What techniques does this framework use to handle the caching of attention weights efficiently when generating very long outputs?",
+    "gold_paper_ids": [
+      "2502.18890v2"
+    ],
+    "topic": "KV cache management",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the paper's core contribution around \"dynamic key-value management\" without using that exact phrase, testing whether a retriever can connect the concept of attention weight caching to this paper's solution.",
+    "source_title": "TokenSwift: Lossless Acceleration of Ultra Long Sequence Generation",
+    "source_abstrat": "Generating ultra-long sequences with large language models (LLMs) has become increasingly crucial but remains a highly time-intensive task, particularly for sequences up to 100K tokens. While traditional speculative decoding methods exist, simply extending their generation limits fails to accelerate the process and can be detrimental. Through an in-depth analysis, we identify three major challenges hindering efficient generation: frequent model reloading, dynamic key-value (KV) management and repetitive generation. To address these issues, we introduce TOKENSWIFT, a novel framework designed to substantially accelerate the generation process of ultra-long sequences while maintaining the target model's inherent quality. Experimental results demonstrate that TOKENSWIFT achieves over 3 times speedup across models of varying scales (1.5B, 7B, 8B, 14B) and architectures (MHA, GQA). This acceleration translates to hours of time savings for ultra-long sequence generation, establishing TOKENSWIFT as a scalable and effective solution at unprecedented lengths. Code can be found at https://github.com/bigai-nlco/TokenSwift.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c017",
+    "question": "Is there a way to reduce memory bandwidth overhead during incremental decoding in Transformers without slowing down the model significantly?",
+    "gold_paper_ids": [
+      "1911.02150v1"
+    ],
+    "topic": "Transformer decoding efficiency",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core problem the paper addresses (memory bandwidth bottleneck in autoregressive decoding) without using distinctive terminology, allowing retrieval based on semantic understanding rather than exact phrase matching.",
+    "source_title": "Fast Transformer Decoding: One Write-Head is All You Need",
+    "source_abstrat": "Multi-head attention layers, as used in the Transformer neural sequence model, are a powerful alternative to RNNs for moving information across and between sequences. While training these layers is generally fast and simple, due to parallelizability across the length of the sequence, incremental inference (where such paralleization is impossible) is often slow, due to the memory-bandwidth cost of repeatedly loading the large \"keys\" and \"values\" tensors. We propose a variant called multi-query attention, where the keys and values are shared across all of the different attention \"heads\", greatly reducing the size of these tensors and hence the memory bandwidth requirements of incremental decoding. We verify experimentally that the resulting models can indeed be much faster to decode, and incur only minor quality degradation from the baseline.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c018",
+    "question": "How can you reduce attention complexity from quadratic to log-linear for processing long documents without sacrificing model performance?",
+    "gold_paper_ids": [
+      "2001.04451v2"
+    ],
+    "topic": "attention efficiency",
+    "difficulty": "semantic",
+    "rationale": "Tests whether the retrieval system can identify this paper's core contribution (LSH attention) using paraphrased language that avoids the specific acronym and describes the problem/solution conceptually.",
+    "source_title": "Reformer: The Efficient Transformer",
+    "source_abstrat": "Large Transformer models routinely achieve state-of-the-art results on a number of tasks but training these models can be prohibitively costly, especially on long sequences. We introduce two techniques to improve the efficiency of Transformers. For one, we replace dot-product attention by one that uses locality-sensitive hashing, changing its complexity from O($L^2$) to O($L\\log L$), where $L$ is the length of the sequence. Furthermore, we use reversible residual layers instead of the standard residuals, which allows storing activations only once in the training process instead of $N$ times, where $N$ is the number of layers. The resulting model, the Reformer, performs on par with Transformer models while being much more memory-efficient and much faster on long sequences.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c019",
+    "question": "I want to understand why smaller language models sometimes handle bit-width reduction better for certain quantization targets compared to larger models. Does this paper analyze that?",
+    "gold_paper_ids": [
+      "2303.08302v3"
+    ],
+    "topic": "post-training quantization sensitivity",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the paper's key finding about activation quantization sensitivity across model scales without using distinctive terms like \"activation quantization\" or \"sensitivity analysis,\" requiring semantic matching to the core insight.",
+    "source_title": "ZeroQuant-V2: Exploring Post-training Quantization in LLMs from Comprehensive Study to Low Rank Compensation",
+    "source_abstrat": "Post-training quantization (PTQ) has emerged as a promising technique for mitigating memory consumption and computational costs in large language models (LLMs). However, a systematic examination of various quantization schemes, model families, and quantization bit precision has been absent from the literature. In this paper, we conduct a comprehensive analysis of these factors by investigating the effects of PTQ on weight-only, activation-only, and weight-and-activation quantization using diverse methods such as round-to-nearest (RTN), GPTQ, ZeroQuant, and their variants. We apply these methods to two distinct model families with parameters ranging from 125M to 176B. Our contributions include: (1) a sensitivity analysis revealing that activation quantization is generally more susceptible to weight quantization, with smaller models often outperforming larger models in terms of activation quantization; (2) an evaluation and comparison of existing PTQ methods to optimize model size reduction while minimizing the impact on accuracy, revealing that none of the current methods can achieve the original model quality for quantization with either INT4-weight or INT4-weight-and-INT8-activation; (3) based on these insights, we propose an optimized method called Low-Rank Compensation (LoRC), which employs low-rank matrices to enhance model quality recovery with a minimal increase in model size.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c020",
+    "question": "How does splitting the attention computation between prompt processing and token generation phases improve serving throughput for language models?",
+    "gold_paper_ids": [
+      "2401.08671v1"
+    ],
+    "topic": "prompt-generation optimization",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core idea of Dynamic SplitFuse without using the distinctive term itself, and asks about the fundamental technique the paper proposes to achieve better throughput-latency tradeoffs.",
+    "source_title": "DeepSpeed-FastGen: High-throughput Text Generation for LLMs via MII and DeepSpeed-Inference",
+    "source_abstrat": "The deployment and scaling of large language models (LLMs) have become critical as they permeate various applications, demanding high-throughput and low-latency serving systems. Existing frameworks struggle to balance these requirements, especially for workloads with long prompts. This paper introduces DeepSpeed-FastGen, a system that employs Dynamic SplitFuse, a novel prompt and generation composition strategy, to deliver up to 2.3x higher effective throughput, 2x lower latency on average, and up to 3.7x lower (token-level) tail latency, compared to state-of-the-art systems like vLLM. We leverage a synergistic combination of DeepSpeed-MII and DeepSpeed-Inference to provide an efficient and easy-to-use serving system for LLMs. DeepSpeed-FastGen's advanced implementation supports a range of models and offers both non-persistent and persistent deployment options, catering to diverse user scenarios from interactive sessions to long-running applications. We present a detailed benchmarking methodology, analyze the performance through latency-throughput curves, and investigate scalability via load balancing. Our evaluations demonstrate substantial improvements in throughput and latency across various models and hardware configurations. We discuss our roadmap for future enhancements, including broader model support and new hardware backends. The DeepSpeed-FastGen code is readily available for community engagement and contribution.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c021",
+    "question": "how can you speed up token generation from large language models by running a smaller model in parallel?",
+    "gold_paper_ids": [
+      "2211.17192v2"
+    ],
+    "topic": "parallel decoding acceleration",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core contribution (using smaller models to accelerate larger ones through parallel execution) without using the paper's distinctive \"speculative decoding\" term, requiring semantic understanding of the approach.",
+    "source_title": "Fast Inference from Transformers via Speculative Decoding",
+    "source_abstrat": "Inference from large autoregressive models like Transformers is slow - decoding K tokens takes K serial runs of the model. In this work we introduce speculative decoding - an algorithm to sample from autoregressive models faster without any changes to the outputs, by computing several tokens in parallel. At the heart of our approach lie the observations that (1) hard language-modeling tasks often include easier subtasks that can be approximated well by more efficient models, and (2) using speculative execution and a novel sampling method, we can make exact decoding from the large models faster, by running them in parallel on the outputs of the approximation models, potentially generating several tokens concurrently, and without changing the distribution. Our method can accelerate existing off-the-shelf models without retraining or architecture changes. We demonstrate it on T5-XXL and show a 2X-3X acceleration compared to the standard T5X implementation, with identical outputs.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c022",
+    "question": "How can you finetune a 65-billion parameter language model on a single consumer GPU while maintaining the quality of full-precision training?",
+    "gold_paper_ids": [
+      "2305.14314v1"
+    ],
+    "topic": "efficient model adaptation",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core practical problem the paper solves (fitting large model finetuning into limited GPU memory) without using distinctive terms like \"QLoRA,\" \"4-bit,\" or \"LoRA,\" making it a genuine semantic search challenge.",
+    "source_title": "QLoRA: Efficient Finetuning of Quantized LLMs",
+    "source_abstrat": "We present QLoRA, an efficient finetuning approach that reduces memory usage enough to finetune a 65B parameter model on a single 48GB GPU while preserving full 16-bit finetuning task performance. QLoRA backpropagates gradients through a frozen, 4-bit quantized pretrained language model into Low Rank Adapters~(LoRA). Our best model family, which we name Guanaco, outperforms all previous openly released models on the Vicuna benchmark, reaching 99.3% of the performance level of ChatGPT while only requiring 24 hours of finetuning on a single GPU. QLoRA introduces a number of innovations to save memory without sacrificing performance: (a) 4-bit NormalFloat (NF4), a new data type that is information theoretically optimal for normally distributed weights (b) double quantization to reduce the average memory footprint by quantizing the quantization constants, and (c) paged optimziers to manage memory spikes. We use QLoRA to finetune more than 1,000 models, providing a detailed analysis of instruction following and chatbot performance across 8 instruction datasets, multiple model types (LLaMA, T5), and model scales that would be infeasible to run with regular finetuning (e.g. 33B and 65B parameter models). Our results show that QLoRA finetuning on a small high-quality dataset leads to state-of-the-art results, even when using smaller models than the previous SoTA. We provide a detailed analysis of chatbot performance based on both human and GPT-4 evaluations showing that GPT-4 evaluations are a cheap and reasonable alternative to human evaluation. Furthermore, we find that current chatbot benchmarks are not trustworthy to accurately evaluate the performance levels of chatbots. A lemon-picked analysis demonstrates where Guanaco fails compared to ChatGPT. We release all of our models and code, including CUDA kernels for 4-bit training.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c023",
+    "question": "I'm working on reducing memory consumption during LLM decoding, especially the bottleneck from storing all the token embeddings. How can I keep only the most important tokens in my cache without retraining?",
+    "gold_paper_ids": [
+      "2305.17118v2"
+    ],
+    "topic": "KV cache compression",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core problem and solution of the paper (selective token retention during inference without retraining) without using distinctive terms like \"Scissorhands,\" \"persistence of importance,\" or \"pivotal tokens,\" making it a good semantic difficulty test.",
+    "source_title": "Scissorhands: Exploiting the Persistence of Importance Hypothesis for LLM KV Cache Compression at Test Time",
+    "source_abstrat": "Large language models(LLMs) have sparked a new wave of exciting AI applications. Hosting these models at scale requires significant memory resources. One crucial memory bottleneck for the deployment stems from the context window. It is commonly recognized that model weights are memory hungry; however, the size of key-value embedding stored during the generation process (KV cache) can easily surpass the model size. The enormous size of the KV cache puts constraints on the inference batch size, which is crucial for high throughput inference workload. Inspired by an interesting observation of the attention scores, we hypothesize the persistence of importance: only pivotal tokens, which had a substantial influence at one step, will significantly influence future generations. Based on our empirical verification and theoretical analysis around this hypothesis, we propose Scissorhands, a system that maintains the memory usage of the KV cache at a fixed budget without finetuning the model. In essence, Scissorhands manages the KV cache by storing the pivotal tokens with a higher probability. We validate that Scissorhands reduces the inference memory usage of the KV cache by up to 5X without compromising model quality. We further demonstrate that Scissorhands can be combined with 4-bit quantization, traditionally used to compress model weights, to achieve up to 20X compression.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c024",
+    "question": "How can you train a Transformer model on sequences that are much longer than usual without running into memory problems with attention?",
+    "gold_paper_ids": [
+      "2305.19370v3"
+    ],
+    "topic": "long sequence training, memory efficiency",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core problem the paper addresses—enabling long sequence training while reducing memory overhead—without using distinctive terms like \"blockwise\" or \"BPT,\" so a researcher seeking solutions to this fundamental problem would naturally find this paper.",
+    "source_title": "Blockwise Parallel Transformer for Large Context Models",
+    "source_abstrat": "Transformers have emerged as the cornerstone of state-of-the-art natural language processing models, showcasing exceptional performance across a wide range of AI applications. However, the memory demands posed by the self-attention mechanism and the large feedforward network in Transformers limit their ability to handle long sequences, thereby creating challenges for tasks involving multiple long sequences or long-term dependencies. We present a distinct approach, Blockwise Parallel Transformer (BPT), that leverages blockwise computation of self-attention and feedforward network fusion to minimize memory costs. By processing longer input sequences while maintaining memory efficiency, BPT enables training sequences 32 times longer than vanilla Transformers and up to 4 times longer than previous memory-efficient methods. Extensive experiments on language modeling and reinforcement learning tasks demonstrate the effectiveness of BPT in reducing memory requirements and improving performance.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c025",
+    "question": "How can we adapt draft models used in speculative decoding to better match the specific patterns of incoming requests?",
+    "gold_paper_ids": [
+      "2310.07177v4"
+    ],
+    "topic": "speculative decoding adaptation",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core innovation (continuous adaptation to query distribution) without using the paper's distinctive \"online\" framing, making it answerable by someone who knows the problem but not this paper's name for the solution.",
+    "source_title": "Online Speculative Decoding",
+    "source_abstrat": "Speculative decoding is a pivotal technique to accelerate the inference of large language models (LLMs) by employing a smaller draft model to predict the target model's outputs. However, its efficacy can be limited due to the low predictive accuracy of the draft model, particularly when faced with diverse text inputs and a significant capability gap between the draft and target models. We introduce online speculative decoding to address this challenge. The main idea is to continuously update the (multiple) draft model(s) on observed user query data. Adapting to query distribution mitigates the shifts between the training distribution of the draft model and the query distribution, enabling the draft model to more accurately predict the target model's outputs. We develop a prototype of online speculative decoding based on knowledge distillation and evaluate it using both synthetic and real query data. The results show a substantial increase in the token acceptance rate by 0.1 to 0.65, bringing 1.42x to 2.17x latency reduction. Our code is available at https://github.com/LiuXiaoxuanPKU/OSD.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c026",
+    "question": "How does using randomized Hadamard transforms improve the efficiency of weight incoherence processing compared to the original QuIP approach?",
+    "gold_paper_ids": [
+      "2402.04396v2"
+    ],
+    "topic": "Hadamard incoherence transform",
+    "difficulty": "specific",
+    "rationale": "This question targets the first key technical contribution of QuIP# using a distinctive term (Hadamard transform) that appears in the title and abstract, testing if the retrieval system can find this specific innovation in quantization methods.",
+    "source_title": "QuIP#: Even Better LLM Quantization with Hadamard Incoherence and Lattice Codebooks",
+    "source_abstrat": "Post-training quantization (PTQ) reduces the memory footprint of LLMs by quantizing their weights to low-precision. In this work, we introduce QuIP#, a weight-only PTQ method that achieves state-of-the-art results in extreme compression regimes ($\\le$ 4 bits per weight) using three novel techniques. First, QuIP# improves QuIP's (Chee et al., 2023) incoherence processing by using the randomized Hadamard transform, which is faster and has better theoretical properties. Second, QuIP# uses vector quantization to take advantage of the ball-shaped sub-Gaussian distribution that incoherent weights possess: specifically, we introduce a set of hardware-efficient codebooks based on the highly symmetric $E_8$ lattice, which achieves the optimal 8-dimension unit ball packing. Third, QuIP# uses fine-tuning to improve fidelity to the original model. Our experiments show that QuIP# outperforms existing PTQ methods, enables new behaviors in PTQ scaling, and supports fast inference. Our code can be found at https://github.com/Cornell-RelaxML/quip-sharp.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c027",
+    "question": "How can you reduce memory usage during language model generation by selectively keeping different parts of the cached key-value data on different attention heads?",
+    "gold_paper_ids": [
+      "2310.01801v4"
+    ],
+    "topic": "KV cache optimization",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core contribution—adaptive cache compression based on attention head patterns—without using the paper's distinctive terms like \"adaptive KV cache compression\" or \"FastGen,\" testing semantic understanding of the approach.",
+    "source_title": "Model Tells You What to Discard: Adaptive KV Cache Compression for LLMs",
+    "source_abstrat": "In this study, we introduce adaptive KV cache compression, a plug-and-play method that reduces the memory footprint of generative inference for Large Language Models (LLMs). Different from the conventional KV cache that retains key and value vectors for all context tokens, we conduct targeted profiling to discern the intrinsic structure of attention modules. Based on the recognized structure, we then construct the KV cache in an adaptive manner: evicting long-range contexts on attention heads emphasizing local contexts, discarding non-special tokens on attention heads centered on special tokens, and only employing the standard KV cache for attention heads that broadly attend to all tokens. Moreover, with the lightweight attention profiling used to guide the construction of the adaptive KV cache, FastGen can be deployed without resource-intensive fine-tuning or re-training. In our experiments across various asks, FastGen demonstrates substantial reduction on GPU memory consumption with negligible generation quality loss. We will release our code and the compatible CUDA kernel for reproducibility.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c028",
+    "question": "How can draft heads in speculative decoding account for dependencies between tokens in a candidate sequence?",
+    "gold_paper_ids": [
+      "2402.05109v2"
+    ],
+    "topic": "draft heads, speculative decoding",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core innovation (sequential dependence among draft predictions) using paraphrased language that avoids the specific term \"Hydra\" and tests whether the paper addresses a fundamental limitation in existing approaches.",
+    "source_title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+    "source_abstrat": "To combat the memory bandwidth-bound nature of autoregressive LLM inference, previous research has proposed the speculative decoding frame-work. To perform speculative decoding, a small draft model proposes candidate continuations of the input sequence that are then verified in parallel by the base model. One way to specify the draft model, as used in the recent Medusa decoding framework, is as a collection of lightweight heads, called draft heads, that operate on the base model's hidden states. To date, all existing draft heads have been sequentially independent, meaning that they speculate tokens in the candidate continuation independently of any preceding tokens in the candidate continuation. In this work, we propose Hydra heads: a sequentially-dependent drop-in replacement for standard draft heads that significantly improves the accuracy of draft head speculation. We further explore the design space of Hydra head training objectives and architectures, and propose a carefully tuned Hydra head recipe, which we call Hydra++, that improves decoding throughput by up to 1.31x and 2.70x compared to Medusa decoding and autoregressive de-coding respectively. Overall, Hydra heads are a simple and well-motivated intervention on standard draft heads that significantly improve the end-to-end speed of draft head-based speculative decoding. We make our code publicly available at https://github.com/zankner/Hydra.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c029",
+    "question": "How can we improve speculative sampling for LLMs so that scaling up training data actually helps the draft model, rather than hitting a performance plateau?",
+    "gold_paper_ids": [
+      "2503.01840v3"
+    ],
+    "topic": "speculative sampling, draft models",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core problem EAGLE-3 solves—why vanilla speculative approaches don't benefit from scale—without using the distinctive term \"EAGLE\" or the specific solution name \"training-time test,\" making it a semantic difficulty question that tests understanding of the underlying motivation.",
+    "source_title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+    "source_abstrat": "The sequential nature of modern LLMs makes them expensive and slow, and speculative sampling has proven to be an effective solution to this problem. Methods like EAGLE perform autoregression at the feature level, reusing top-layer features from the target model to achieve better results than vanilla speculative sampling. A growing trend in the LLM community is scaling up training data to improve model intelligence without increasing inference costs. However, we observe that scaling up data provides limited improvements for EAGLE. We identify that this limitation arises from EAGLE's feature prediction constraints. In this paper, we introduce EAGLE-3, which abandons feature prediction in favor of direct token prediction and replaces reliance on top-layer features with multi-layer feature fusion via a technique named training-time test. These improvements significantly enhance performance and enable the draft model to fully benefit from scaling up training data. Our experiments include both chat models and reasoning models, evaluated on five tasks. The results show that EAGLE-3 achieves a speedup ratio up to 6.5x, with about 1.4x improvement over EAGLE-2. In the SGLang framework, EAGLE-3 achieves a 1.38x throughput improvement at a batch size of 64. The code is available at https://github.com/SafeAILab/EAGLE.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c030",
+    "question": "How can we reduce KV cache memory consumption during LLM inference without sacrificing model accuracy?",
+    "gold_paper_ids": [
+      "2306.14048v3"
+    ],
+    "topic": "KV cache optimization",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core problem the paper addresses—reducing the memory footprint of attention caches during inference—but avoids the paper's specific terminology like \"Heavy Hitters\" or \"H2O,\" testing whether a semantic search would surface this work when a researcher is thinking about the general problem space.",
+    "source_title": "H$_2$O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models",
+    "source_abstrat": "Large Language Models (LLMs), despite their recent impressive accomplishments, are notably cost-prohibitive to deploy, particularly for applications involving long-content generation, such as dialogue systems and story writing. Often, a large amount of transient state information, referred to as the KV cache, is stored in GPU memory in addition to model parameters, scaling linearly with the sequence length and batch size. In this paper, we introduce a novel approach for implementing the KV cache which significantly reduces its memory footprint. Our approach is based on the noteworthy observation that a small portion of tokens contributes most of the value when computing attention scores. We call these tokens Heavy Hitters (H$_2$). Through a comprehensive investigation, we find that (i) the emergence of H$_2$ is natural and strongly correlates with the frequent co-occurrence of tokens in the text, and (ii) removing them results in significant performance degradation. Based on these insights, we propose Heavy Hitter Oracle (H$_2$O), a KV cache eviction policy that dynamically retains a balance of recent and H$_2$ tokens. We formulate the KV cache eviction as a dynamic submodular problem and prove (under mild assumptions) a theoretical guarantee for our novel eviction algorithm which could help guide future work. We validate the accuracy of our algorithm with OPT, LLaMA, and GPT-NeoX across a wide range of tasks. Our implementation of H$_2$O with 20% heavy hitters improves the throughput over three leading inference systems DeepSpeed Zero-Inference, Hugging Face Accelerate, and FlexGen by up to 29$\\times$, 29$\\times$, and 3$\\times$ on OPT-6.7B and OPT-30B. With the same batch size, H2O can reduce the latency by up to 1.9$\\times$. The code is available at https://github.com/FMInference/H2O.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c031",
+    "question": "How can we compress the KV cache while keeping semantic relationships intact instead of just looking at individual token importance?",
+    "gold_paper_ids": [
+      "2502.00299v3"
+    ],
+    "topic": "KV cache compression",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core motivation and contribution (semantic chunk-based compression vs token-level importance) without using the paper's distinctive term \"ChunkKV\" or the exact framing from the abstract.",
+    "source_title": "ChunkKV: Semantic-Preserving KV Cache Compression for Efficient Long-Context LLM Inference",
+    "source_abstrat": "Large Language Models (LLMs) require significant GPU memory when processing long texts, with the key value (KV) cache consuming up to 70\\% of total memory during inference. Although existing compression methods reduce memory by evaluating the importance of individual tokens, they overlook critical semantic relationships between tokens, resulting in fragmented context and degraded performance. We introduce ChunkKV, which fundamentally reimagines KV cache compression by treating semantic chunks - rather than isolated tokens - as basic compression units. This approach preserves complete linguistic structures and contextual integrity, ensuring that essential meaning is retained even under aggressive compression. Our innovation includes a novel layer-wise index reuse technique that exploits the higher cross-layer similarity of preserved indices in ChunkKV, reducing computational overhead and improving throughput by 26.5\\%. Comprehensive evaluations on challenging benchmarks: LongBench, Needle-In-A-HayStack, GSM8K, and JailbreakV demonstrate that ChunkKV outperforms state-of-the-art methods by up to 8.7\\% in precision while maintaining the same compression ratio. These results confirm that semantic-aware compression significantly enhances both efficiency and performance for long-context LLM inference, providing a simple yet effective solution to the memory bottleneck problem.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c032",
+    "question": "How can you reduce the computational complexity of attention mechanisms from quadratic to linear while still maintaining performance on standard NLP tasks?",
+    "gold_paper_ids": [
+      "2102.03902v3"
+    ],
+    "topic": "efficient attention approximation",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core contribution (using Nyström method for O(n) approximation) without mentioning the specific technique or paper name, testing whether retrieval captures the underlying problem-solving approach researchers actually search for.",
+    "source_title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+    "source_abstrat": "Transformers have emerged as a powerful tool for a broad range of natural language processing tasks. A key component that drives the impressive performance of Transformers is the self-attention mechanism that encodes the influence or dependence of other tokens on each specific token. While beneficial, the quadratic complexity of self-attention on the input sequence length has limited its application to longer sequences -- a topic being actively studied in the community. To address this limitation, we propose Nyströmformer -- a model that exhibits favorable scalability as a function of sequence length. Our idea is based on adapting the Nyström method to approximate standard self-attention with $O(n)$ complexity. The scalability of Nyströmformer enables application to longer sequences with thousands of tokens. We perform evaluations on multiple downstream tasks on the GLUE benchmark and IMDB reviews with standard sequence length, and find that our Nyströmformer performs comparably, or in a few cases, even slightly better, than standard self-attention. On longer sequence tasks in the Long Range Arena (LRA) benchmark, Nyströmformer performs favorably relative to other efficient self-attention methods. Our code is available at https://github.com/mlpen/Nystromformer.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c033",
+    "question": "How can you run a massive language model like OPT-175B on a single consumer GPU server without losing accuracy?",
+    "gold_paper_ids": [
+      "2208.07339v2"
+    ],
+    "topic": "quantization for inference",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core practical contribution—making massive models accessible on consumer hardware while maintaining performance—without using the paper's distinctive technical terms like \"Int8\" or \"mixed-precision decomposition.\"",
+    "source_title": "LLM.int8(): 8-bit Matrix Multiplication for Transformers at Scale",
+    "source_abstrat": "Large language models have been widely adopted but require significant GPU memory for inference. We develop a procedure for Int8 matrix multiplication for feed-forward and attention projection layers in transformers, which cut the memory needed for inference by half while retaining full precision performance. With our method, a 175B parameter 16/32-bit checkpoint can be loaded, converted to Int8, and used immediately without performance degradation. This is made possible by understanding and working around properties of highly systematic emergent features in transformer language models that dominate attention and transformer predictive performance. To cope with these features, we develop a two-part quantization procedure, LLM.int8(). We first use vector-wise quantization with separate normalization constants for each inner product in the matrix multiplication, to quantize most of the features. However, for the emergent outliers, we also include a new mixed-precision decomposition scheme, which isolates the outlier feature dimensions into a 16-bit matrix multiplication while still more than 99.9% of values are multiplied in 8-bit. Using LLM.int8(), we show empirically it is possible to perform inference in LLMs with up to 175B parameters without any performance degradation. This result makes such models much more accessible, for example making it possible to use OPT-175B/BLOOM on a single server with consumer GPUs. We open-source our software.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c034",
+    "question": "How can you efficiently calibrate quantization parameters for very low-bit quantization of large language models without hand-crafting them?",
+    "gold_paper_ids": [
+      "2308.13137v3"
+    ],
+    "topic": "low-bit quantization calibration",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core motivation and contribution of OmniQuant—automating calibration for extreme quantization—without using the paper's distinctive terminology or acronyms, making it a genuine semantic retrieval challenge.",
+    "source_title": "OmniQuant: Omnidirectionally Calibrated Quantization for Large Language Models",
+    "source_abstrat": "Large language models (LLMs) have revolutionized natural language processing tasks. However, their practical deployment is hindered by their immense memory and computation requirements. Although recent post-training quantization (PTQ) methods are effective in reducing memory footprint and improving the computational efficiency of LLM, they hand-craft quantization parameters, leading to low performance, especially in extremely low-bit quantization. To tackle this issue, we introduce an Omnidirectionally calibrated Quantization (\\textbf{OmniQuant}) technique for LLMs, which achieves good performance in diverse quantization settings while maintaining the computational efficiency of PTQ by efficiently optimizing various quantization parameters. OmniQuant comprises two innovative components including Learnable Weight Clipping (LWC) and Learnable Equivalent Transformation (LET). LWC modulates the extreme values of weights by optimizing the clipping threshold. Meanwhile, LET tackles activation outliers by shifting the challenge of quantization from activations to weights. Operating within a differentiable framework using block-wise error minimization, OmniQuant can optimize the quantization process efficiently for both weight-only and weight-activation quantization. For instance, the LLaMA-2 model family size 7-70B can be processed with OmniQuant on a single A100-40G GPU within 1-16 hours using 128 samples. Extensive experiments validate OmniQuant's superior performance across diverse quantization configurations such as W4A4 (4-bit weight, 4-bit activation), W6A6, W4A16, W3A16, and W2A16. Additionally, OmniQuant demonstrates effectiveness in instruction-tuned models and delivers notable improvements in inference speed and memory reduction on real devices. Codes are available at \\url{https://github.com/OpenGVLab/OmniQuant}.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c035",
+    "question": "How does vLLM reduce memory fragmentation when serving multiple LLM requests simultaneously?",
+    "gold_paper_ids": [
+      "2309.06180v1"
+    ],
+    "topic": "KV cache memory management",
+    "difficulty": "semantic",
+    "rationale": "This question asks about the core problem and solution without using the paper's distinctive \"PagedAttention\" or paging terminology, requiring a reader to understand the underlying memory fragmentation challenge the paper addresses.",
+    "source_title": "Efficient Memory Management for Large Language Model Serving with PagedAttention",
+    "source_abstrat": "High throughput serving of large language models (LLMs) requires batching sufficiently many requests at a time. However, existing systems struggle because the key-value cache (KV cache) memory for each request is huge and grows and shrinks dynamically. When managed inefficiently, this memory can be significantly wasted by fragmentation and redundant duplication, limiting the batch size. To address this problem, we propose PagedAttention, an attention algorithm inspired by the classical virtual memory and paging techniques in operating systems. On top of it, we build vLLM, an LLM serving system that achieves (1) near-zero waste in KV cache memory and (2) flexible sharing of KV cache within and across requests to further reduce memory usage. Our evaluations show that vLLM improves the throughput of popular LLMs by 2-4$\\times$ with the same level of latency compared to the state-of-the-art systems, such as FasterTransformer and Orca. The improvement is more pronounced with longer sequences, larger models, and more complex decoding algorithms. vLLM's source code is publicly available at https://github.com/vllm-project/vllm",
+    "keep": false
+  },
+  {
+    "candidate_id": "c036",
+    "question": "How can you speed up language model inference by retrieving candidate tokens from a cache of previous outputs instead of using a separate draft model?",
+    "gold_paper_ids": [
+      "2311.08252v2"
+    ],
+    "topic": "speculative decoding, token retrieval",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core mechanism (retrieval instead of draft model) without using the paper's title or acronym, and would be asked by someone seeking alternatives to traditional draft-model speculative decoding.",
+    "source_title": "REST: Retrieval-Based Speculative Decoding",
+    "source_abstrat": "We introduce Retrieval-Based Speculative Decoding (REST), a novel algorithm designed to speed up language model generation. The key insight driving the development of REST is the observation that the process of text generation often includes certain common phases and patterns. Unlike previous methods that rely on a draft language model for speculative decoding, REST harnesses the power of retrieval to generate draft tokens. This method draws from the reservoir of existing knowledge, retrieving and employing relevant tokens based on the current context. Its plug-and-play nature allows for seamless integration and acceleration of any language models, all without necessitating additional training. When benchmarked on 7B and 13B language models in a single-batch setting, REST achieves a significant speedup of 1.62X to 2.36X on code or text generation. The code of REST is available at https://github.com/FasterDecoding/REST.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c037",
+    "question": "How can optimal transport theory be applied to improve the speed of speculative decoding in large language models?",
+    "gold_paper_ids": [
+      "2310.15141v2"
+    ],
+    "topic": "speculative decoding, optimal transport",
+    "difficulty": "semantic",
+    "rationale": "This question asks about the core contribution of the paper—using optimal transport to principally understand and improve speculative decoding—without lifting distinctive phrases or assuming knowledge of the SpecTr method name.",
+    "source_title": "SpecTr: Fast Speculative Decoding via Optimal Transport",
+    "source_abstrat": "Autoregressive sampling from large language models has led to state-of-the-art results in several natural language tasks. However, autoregressive sampling generates tokens one at a time making it slow, and even prohibitive in certain tasks. One way to speed up sampling is $\\textit{speculative decoding}$: use a small model to sample a $\\textit{draft}$ (block or sequence of tokens), and then score all tokens in the draft by the large language model in parallel. A subset of the tokens in the draft are accepted (and the rest rejected) based on a statistical method to guarantee that the final output follows the distribution of the large model. In this work, we provide a principled understanding of speculative decoding through the lens of optimal transport (OT) with $\\textit{membership cost}$. This framework can be viewed as an extension of the well-known $\\textit{maximal-coupling}$ problem. This new formulation enables us to generalize the speculative decoding method to allow for a set of $k$ candidates at the token-level, which leads to an improved optimal membership cost. We show that the optimal draft selection algorithm (transport plan) can be computed via linear programming, whose best-known runtime is exponential in $k$. We then propose a valid draft selection algorithm whose acceptance probability is $(1-1/e)$-optimal multiplicatively. Moreover, it can be computed in time almost linear with size of domain of a single token. Using this $new draft selection$ algorithm, we develop a new autoregressive sampling algorithm called $\\textit{SpecTr}$, which provides speedup in decoding while ensuring that there is no quality degradation in the decoded output. We experimentally demonstrate that for state-of-the-art large language models, the proposed approach achieves a wall clock speedup of 2.13X, a further 1.37X speedup over speculative decoding on standard benchmarks.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c038",
+    "question": "how can you run the token generation phase of LLM inference on cheaper or lower-power hardware than the prompt processing phase?",
+    "gold_paper_ids": [
+      "2311.18677v2"
+    ],
+    "topic": "phase splitting for inference",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core practical motivation behind the paper's split-phase approach without using the paper's distinctive term \"Splitwise\" or exact phrases from the abstract, testing whether a retrieval system can find this paper based on the underlying problem it solves.",
+    "source_title": "Splitwise: Efficient generative LLM inference using phase splitting",
+    "source_abstrat": "Recent innovations in generative large language models (LLMs) have made their applications and use-cases ubiquitous. This has led to large-scale deployments of these models, using complex, expensive, and power-hungry AI accelerators, most commonly GPUs. These developments make LLM inference efficiency an important challenge. Based on our extensive characterization, we find that there are two main phases during an LLM inference request: a compute-intensive prompt computation, and a memory-intensive token generation, each with distinct latency, throughput, memory, and power characteristics. Despite state-of-the-art batching and scheduling, the token generation phase underutilizes compute resources. Specifically, unlike compute-intensive prompt computation phases, token generation phases do not require the compute capability of the latest GPUs, and can be run with lower power and cost.\n  With Splitwise, we propose splitting the two phases of a LLM inference request on to separate machines. This allows us to use hardware that is well-suited for each phase, and provision resources independently per phase. However, splitting an inference request across machines requires state transfer from the machine running prompt computation over to the machine generating tokens. We implement and optimize this state transfer using the fast back-plane interconnects available in today's GPU clusters.\n  We use the Splitwise technique to design LLM inference clusters using the same or different types of machines for the prompt computation and token generation phases. Our clusters are optimized for three key objectives: throughput, cost, and power. In particular, we show that we can achieve 1.4x higher throughput at 20% lower cost than current designs. Alternatively, we can achieve 2.35x more throughput with the same cost and power budgets.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c039",
+    "question": "How can we reduce KV cache memory overhead during LLM generation without model retraining?",
+    "gold_paper_ids": [
+      "2404.14469v1"
+    ],
+    "topic": "KV cache compression",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core problem and solution of the paper (fine-tuning-free KV cache reduction) using paraphrased language that avoids the distinctive \"SnapKV\" name and key terms, testing whether retrieval can find this work via the underlying concept.",
+    "source_title": "SnapKV: LLM Knows What You are Looking for Before Generation",
+    "source_abstrat": "Large Language Models (LLMs) have made remarkable progress in processing extensive contexts, with the Key-Value (KV) cache playing a vital role in enhancing their performance. However, the growth of the KV cache in response to increasing input length poses challenges to memory and time efficiency. To address this problem, this paper introduces SnapKV, an innovative and fine-tuning-free approach that efficiently minimizes KV cache size while still delivering comparable performance in real-world applications.\n  We discover that each attention head in the model consistently focuses on specific prompt attention features during generation. Meanwhile, this robust pattern can be obtained from an `observation' window located at the end of the prompts. Drawing on this insight, SnapKV automatically compresses KV caches by selecting clustered important KV positions for each attention head. Our approach significantly reduces the growing computational overhead and memory footprint when processing long input sequences. Specifically, SnapKV achieves a consistent decoding speed with a 3.6x increase in generation speed and an 8.2x enhancement in memory efficiency compared to baseline when processing inputs of 16K tokens. At the same time, it maintains comparable performance to baseline models across 16 long sequence datasets. Moreover, SnapKV can process up to 380K context tokens on a single A100-80GB GPU using HuggingFace implementation with minor changes, exhibiting only a negligible accuracy drop in the Needle-in-a-Haystack test. Further comprehensive studies suggest SnapKV's potential for practical applications.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c040",
+    "question": "how can we predict and generate multiple future tokens at once without training a separate smaller model?",
+    "gold_paper_ids": [
+      "2401.10774v3"
+    ],
+    "topic": "parallel token generation",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core problem and solution (multiple heads + tree attention for parallel candidates) without using distinctive paper terms like \"Medusa,\" \"decoding heads,\" or \"speculative decoding,\" testing semantic understanding.",
+    "source_title": "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads",
+    "source_abstrat": "Large Language Models (LLMs) employ auto-regressive decoding that requires sequential computation, with each step reliant on the previous one's output. This creates a bottleneck as each step necessitates moving the full model parameters from High-Bandwidth Memory (HBM) to the accelerator's cache. While methods such as speculative decoding have been suggested to address this issue, their implementation is impeded by the challenges associated with acquiring and maintaining a separate draft model. In this paper, we present Medusa, an efficient method that augments LLM inference by adding extra decoding heads to predict multiple subsequent tokens in parallel. Using a tree-based attention mechanism, Medusa constructs multiple candidate continuations and verifies them simultaneously in each decoding step. By leveraging parallel processing, Medusa substantially reduces the number of decoding steps required. We present two levels of fine-tuning procedures for Medusa to meet the needs of different use cases: Medusa-1: Medusa is directly fine-tuned on top of a frozen backbone LLM, enabling lossless inference acceleration. Medusa-2: Medusa is fine-tuned together with the backbone LLM, enabling better prediction accuracy of Medusa heads and higher speedup but needing a special training recipe that preserves the backbone model's capabilities.\n  Moreover, we propose several extensions that improve or expand the utility of Medusa, including a self-distillation to handle situations where no training data is available and a typical acceptance scheme to boost the acceptance rate while maintaining generation quality. We evaluate Medusa on models of various sizes and training procedures. Our experiments demonstrate that Medusa-1 can achieve over 2.2x speedup without compromising generation quality, while Medusa-2 further improves the speedup to 2.3-3.6x.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c041",
+    "question": "How can you speed up inference for large language models by reducing the memory footprint of cached key-value pairs during generation?",
+    "gold_paper_ids": [
+      "2403.09636v2"
+    ],
+    "topic": "KV cache compression",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core problem and solution (cache compression for inference speedup) without using the paper's distinctive acronym \"DMC\" or exact phrasing, making it a good semantic-difficulty test.",
+    "source_title": "Dynamic Memory Compression: Retrofitting LLMs for Accelerated Inference",
+    "source_abstrat": "Transformers have emerged as the backbone of large language models (LLMs). However, generation remains inefficient due to the need to store in memory a cache of key-value representations for past tokens, whose size scales linearly with the input sequence length and batch size. As a solution, we propose Dynamic Memory Compression (DMC), a method for online key-value cache compression at inference time. Most importantly, the model learns to apply different compression ratios in different heads and layers. We retrofit pre-trained LLMs such as Llama 2 (7B, 13B and 70B) into DMC Transformers, achieving up to 7x throughput increase during auto-regressive inference on an NVIDIA H100 GPU. DMC is applied via continued pre-training on a negligible percentage of the original data without adding any extra parameters. DMC preserves the original downstream performance with up to 4x cache compression, outperforming up-trained grouped-query attention (GQA) and key-value eviction policies (H$_2$O, TOVA). GQA and DMC can be even combined to obtain compounded gains. Hence, DMC can serve as a drop-in replacement for KV caching in existing LLMs to fit longer contexts and larger batches within any given memory budget.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c042",
+    "question": "how does the distribution of values in the attention cache differ between the two cache components, and what quantization strategy does that suggest?",
+    "gold_paper_ids": [
+      "2402.02750v2"
+    ],
+    "topic": "KV cache quantization",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core empirical finding (asymmetric distribution patterns) and methodological insight (per-channel vs per-token) without using the paper's distinctive terms like \"KIVI\", \"2bit\", or \"element distribution\", making it a good semantic retrieval test.",
+    "source_title": "KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache",
+    "source_abstrat": "Efficiently serving large language models (LLMs) requires batching of many requests to reduce the cost per request. Yet, with larger batch sizes and longer context lengths, the key-value (KV) cache, which stores attention keys and values to avoid re-computations, significantly increases memory demands and becomes the new bottleneck in speed and memory usage. Additionally, the loading of the KV cache causes the computational core to be idle, which limits the inference speed. A straightforward and effective solution to reduce KV cache size is quantization, which decreases the total bytes taken by KV cache. However, there is a lack of in-depth studies that explore the element distribution of KV cache to understand the hardness and limitation of KV cache quantization. To fill the gap, we conducted a comprehensive study on the element distribution in KV cache of popular LLMs. Our findings indicate that the key cache should be quantized per-channel, i.e., group elements along the channel dimension and quantize them together. In contrast, the value cache should be quantized per-token. From this analysis, we developed a tuning-free 2bit KV cache quantization algorithm named KIVI. With hardware-friendly implementation, KIVI can enable Llama, Falcon, and Mistral models to maintain almost the same quality while using $\\mathbf{2.6\\times}$ less peak memory (including model weight). This reduction in memory usage enables up to $\\mathbf{4\\times}$ larger batch size, bringing $\\mathbf{2.35\\times \\sim 3.47\\times}$ throughput on real LLM inference workload. The source code is available at https://github.com/jy-yuan/KIVI.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c043",
+    "question": "how can we improve GPU utilization when computing attention by better distributing work across thread blocks and warps?",
+    "gold_paper_ids": [
+      "2307.08691v1"
+    ],
+    "topic": "GPU attention optimization",
+    "difficulty": "semantic",
+    "rationale": "Directly addresses the core contribution (work partitioning improvements) but without using distinctive terms like \"FlashAttention\" or \"thread block,\" making it searchable by the underlying problem rather than the solution name.",
+    "source_title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+    "source_abstrat": "Scaling Transformers to longer sequence lengths has been a major problem in the last several years, promising to improve performance in language modeling and high-resolution image understanding, as well as to unlock new applications in code, audio, and video generation. The attention layer is the main bottleneck in scaling to longer sequences, as its runtime and memory increase quadratically in the sequence length. FlashAttention exploits the asymmetric GPU memory hierarchy to bring significant memory saving (linear instead of quadratic) and runtime speedup (2-4$\\times$ compared to optimized baselines), with no approximation. However, FlashAttention is still not nearly as fast as optimized matrix-multiply (GEMM) operations, reaching only 25-40\\% of the theoretical maximum FLOPs/s. We observe that the inefficiency is due to suboptimal work partitioning between different thread blocks and warps on the GPU, causing either low-occupancy or unnecessary shared memory reads/writes. We propose FlashAttention-2, with better work partitioning to address these issues. In particular, we (1) tweak the algorithm to reduce the number of non-matmul FLOPs (2) parallelize the attention computation, even for a single head, across different thread blocks to increase occupancy, and (3) within each thread block, distribute the work between warps to reduce communication through shared memory. These yield around 2$\\times$ speedup compared to FlashAttention, reaching 50-73\\% of the theoretical maximum FLOPs/s on A100 and getting close to the efficiency of GEMM operations. We empirically validate that when used end-to-end to train GPT-style models, FlashAttention-2 reaches training speed of up to 225 TFLOPs/s per A100 GPU (72\\% model FLOPs utilization).",
+    "keep": false
+  },
+  {
+    "candidate_id": "c044",
+    "question": "How can you allocate KV cache eviction budgets differently across attention heads to improve efficiency?",
+    "gold_paper_ids": [
+      "2407.11550v5"
+    ],
+    "topic": "KV cache optimization",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core innovation (adaptive per-head budget allocation) without using the paper's specific framing or acronym \"Ada-KV\", making it answerable from the paper but independent of its distinctive terminology.",
+    "source_title": "Ada-KV: Optimizing KV Cache Eviction by Adaptive Budget Allocation for Efficient LLM Inference",
+    "source_abstrat": "Large Language Models have excelled in various domains but face efficiency challenges due to the growing Key-Value (KV) cache required for long-sequence inference. Recent efforts aim to reduce KV cache size by evicting vast non-critical cache elements during runtime while preserving generation quality. However, these methods typically allocate compression budgets uniformly across all attention heads, ignoring the unique attention patterns of each head. In this paper, we establish a theoretical loss upper bound between pre- and post-eviction attention output, explaining the optimization target of prior cache eviction methods, while guiding the optimization of adaptive budget allocation. Base on this, we propose {\\it Ada-KV}, the first head-wise adaptive budget allocation strategy. It offers plug-and-play benefits, enabling seamless integration with prior cache eviction methods. Extensive evaluations on 13 datasets from Ruler and 16 datasets from LongBench, all conducted under both question-aware and question-agnostic scenarios, demonstrate substantial quality improvements over existing methods. Our code is available at https://github.com/FFY0/AdaKV.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c045",
+    "question": "How does AQLM achieve better compression than other methods when reducing language models to 2-3 bits per weight?",
+    "gold_paper_ids": [
+      "2401.06118v4"
+    ],
+    "topic": "extreme quantization techniques",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core contribution (additive quantization for ultra-low bit compression) without using distinctive acronyms like AQLM or MCQ, testing whether a retriever can connect the concept to this specific paper.",
+    "source_title": "Extreme Compression of Large Language Models via Additive Quantization",
+    "source_abstrat": "The emergence of accurate open large language models (LLMs) has led to a race towards performant quantization techniques which can enable their execution on end-user devices. In this paper, we revisit the problem of \"extreme\" LLM compression-defined as targeting extremely low bit counts, such as 2 to 3 bits per parameter-from the point of view of classic methods in Multi-Codebook Quantization (MCQ). Our algorithm, called AQLM, generalizes the classic Additive Quantization (AQ) approach for information retrieval to advance the state-of-the-art in LLM compression, via two innovations: 1) learned additive quantization of weight matrices in input-adaptive fashion, and 2) joint optimization of codebook parameters across each transformer blocks. Broadly, AQLM is the first scheme that is Pareto optimal in terms of accuracy-vs-model-size when compressing to less than 3 bits per parameter, and significantly improves upon all known schemes in the extreme compression (2bit) regime. In addition, AQLM is practical: we provide fast GPU and CPU implementations of AQLM for token generation, which enable us to match or outperform optimized FP16 implementations for speed, while executing in a much smaller memory footprint.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c046",
+    "question": "How does identifying which weight channels matter help reduce errors when compressing language models to use fewer bits?",
+    "gold_paper_ids": [
+      "2306.00978v6"
+    ],
+    "topic": "Weight quantization, LLM compression",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases AWQ's core insight (using activation statistics to identify salient weights) without using the paper's specific terms, testing semantic understanding of the compression strategy.",
+    "source_title": "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration",
+    "source_abstrat": "Large language models (LLMs) have transformed numerous AI applications. On-device LLM is becoming increasingly important: running LLMs locally on edge devices can reduce the cloud computing cost and protect users' privacy. However, the astronomical model size and the limited hardware resource pose significant deployment challenges. We propose Activation-aware Weight Quantization (AWQ), a hardware-friendly approach for LLM low-bit weight-only quantization. AWQ finds that not all weights in an LLM are equally important. Protecting only 1% salient weights can greatly reduce quantization error. To identify salient weight channels, we should refer to the activation distribution, not weights. To avoid the hardware-inefficient mix-precision quantization, we mathematically derive that scaling up the salient channels can reduce the quantization error. AWQ employs an equivalent transformation to scale the salient weight channels to protect them. The scale is determined by collecting the activation statistics offline. AWQ does not rely on any backpropagation or reconstruction, so it generalizes to different domains and modalities without overfitting the calibration set. AWQ outperforms existing work on various language modeling and domain-specific benchmarks (coding and math). Thanks to better generalization, it achieves excellent quantization performance for instruction-tuned LMs and, for the first time, multi-modal LMs. Alongside AWQ, we implement TinyChat, an efficient and flexible inference framework tailored for 4-bit on-device LLM/VLMs. With kernel fusion and platform-aware weight packing, TinyChat offers more than 3x speedup over the Huggingface FP16 implementation on both desktop and mobile GPUs. It also democratizes the deployment of the 70B Llama-2 model on mobile GPUs.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c047",
+    "question": "Can I convert an existing pretrained language model to use grouped-query attention without retraining from scratch?",
+    "gold_paper_ids": [
+      "2305.13245v3"
+    ],
+    "topic": "attention mechanism conversion",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core contribution (uptraining multi-head models to GQA) using domain-neutral language, testing whether a reader can find this paper when searching for practical conversion methods without knowing the specific terminology.",
+    "source_title": "GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints",
+    "source_abstrat": "Multi-query attention (MQA), which only uses a single key-value head, drastically speeds up decoder inference. However, MQA can lead to quality degradation, and moreover it may not be desirable to train a separate model just for faster inference. We (1) propose a recipe for uptraining existing multi-head language model checkpoints into models with MQA using 5% of original pre-training compute, and (2) introduce grouped-query attention (GQA), a generalization of multi-query attention which uses an intermediate (more than one, less than number of query heads) number of key-value heads. We show that uptrained GQA achieves quality close to multi-head attention with comparable speed to MQA.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c048",
+    "question": "how do you make sure quantized weights are evenly distributed in magnitude when compressing language models to 2 bits?",
+    "gold_paper_ids": [
+      "2307.13304v2"
+    ],
+    "topic": "weight distribution, quantization",
+    "difficulty": "semantic",
+    "rationale": "Directly addresses the core insight of QuIP—incoherence processing for uniform weight magnitude—without using the paper's distinctive terminology, testing whether retrieval captures the conceptual contribution.",
+    "source_title": "QuIP: 2-Bit Quantization of Large Language Models With Guarantees",
+    "source_abstrat": "This work studies post-training parameter quantization in large language models (LLMs). We introduce quantization with incoherence processing (QuIP), a new method based on the insight that quantization benefits from $\\textit{incoherent}$ weight and Hessian matrices, i.e., from the weights being even in magnitude and the directions in which it is important to round them accurately being unaligned with the coordinate axes. QuIP consists of two steps: (1) an adaptive rounding procedure minimizing a quadratic proxy objective; (2) efficient pre- and post-processing that ensures weight and Hessian incoherence via multiplication by random orthogonal matrices. We complement QuIP with the first theoretical analysis for an LLM-scale quantization algorithm, and show that our theory also applies to an existing method, OPTQ. Empirically, we find that our incoherence preprocessing improves several existing quantization algorithms and yields the first LLM quantization methods that produce viable results using only two bits per weight. Our code can be found at https://github.com/Cornell-RelaxML/QuIP.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c049",
+    "question": "How can you distribute attention computation for long sequences across multiple GPUs while hiding the communication cost of moving attention keys and values?",
+    "gold_paper_ids": [
+      "2310.01889v4"
+    ],
+    "topic": "distributed attention, long context",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core idea (blockwise attention + ring communication overlap) without using the paper's distinctive terms, testing whether a researcher understands the underlying technique conceptually.",
+    "source_title": "Ring Attention with Blockwise Transformers for Near-Infinite Context",
+    "source_abstrat": "Transformers have emerged as the architecture of choice for many state-of-the-art AI models, showcasing exceptional performance across a wide range of AI applications. However, the memory demands imposed by Transformers limit their ability to handle long sequences, thereby posing challenges in utilizing videos, actions, and other long-form sequences and modalities in complex environments. We present a novel approach, Ring Attention with Blockwise Transformers (Ring Attention), which leverages blockwise computation of self-attention and feedforward to distribute long sequences across multiple devices while fully overlapping the communication of key-value blocks with the computation of blockwise attention. Our approach enables training and inference of sequences that are up to device count times longer than those achievable by prior memory-efficient Transformers, without resorting to approximations or incurring additional communication and computation overheads. Extensive experiments on language modeling and reinforcement learning tasks demonstrate the effectiveness of our approach in allowing millions of tokens context size and improving performance.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c050",
+    "question": "Can you find research on training language models where every parameter is restricted to just three values?",
+    "gold_paper_ids": [
+      "2402.17764v1"
+    ],
+    "topic": "ternary quantization",
+    "difficulty": "semantic",
+    "rationale": "The question asks about the core technical contribution (ternary parameters) without using the paper's distinctive \"BitNet b1.58\" or \"1.58-bit\" terminology, requiring semantic understanding of extreme quantization.",
+    "source_title": "The Era of 1-bit LLMs: All Large Language Models are in 1.58 Bits",
+    "source_abstrat": "Recent research, such as BitNet, is paving the way for a new era of 1-bit Large Language Models (LLMs). In this work, we introduce a 1-bit LLM variant, namely BitNet b1.58, in which every single parameter (or weight) of the LLM is ternary {-1, 0, 1}. It matches the full-precision (i.e., FP16 or BF16) Transformer LLM with the same model size and training tokens in terms of both perplexity and end-task performance, while being significantly more cost-effective in terms of latency, memory, throughput, and energy consumption. More profoundly, the 1.58-bit LLM defines a new scaling law and recipe for training new generations of LLMs that are both high-performance and cost-effective. Furthermore, it enables a new computation paradigm and opens the door for designing specific hardware optimized for 1-bit LLMs.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c051",
+    "question": "Can you find a paper that uses smaller models to generate candidate token predictions organized as a tree structure, and then verifies them in parallel against a larger language model?",
+    "gold_paper_ids": [
+      "2305.09781v4"
+    ],
+    "topic": "speculative inference, tree verification",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core technical contribution without using SpecInfer's name or distinctive acronyms, testing whether a retrieval system can find the paper based on the underlying methodology rather than keyword matching.",
+    "source_title": "SpecInfer: Accelerating Generative Large Language Model Serving with Tree-based Speculative Inference and Verification",
+    "source_abstrat": "This paper introduces SpecInfer, a system that accelerates generative large language model (LLM) serving with tree-based speculative inference and verification. The key idea behind SpecInfer is leveraging small speculative models to predict the LLM's outputs; the predictions are organized as a token tree, whose nodes each represent a candidate token sequence. The correctness of all candidate token sequences represented by a token tree is verified against the LLM in parallel using a novel tree-based parallel decoding mechanism. SpecInfer uses an LLM as a token tree verifier instead of an incremental decoder, which significantly reduces the end-to-end latency and computational requirement for serving generative LLMs while provably preserving model quality. Our evaluation shows that SpecInfer outperforms existing LLM serving systems by 1.5-2.8x for distributed LLM inference and by 2.6-3.5x for offloading-based LLM inference, while preserving the same generative performance. SpecInfer is publicly available at https://github.com/flexflow/FlexFlow/",
+    "keep": false
+  },
+  {
+    "candidate_id": "c052",
+    "question": "How can you speed up generating tokens from a large language model by using a smaller model to propose multiple token candidates at once?",
+    "gold_paper_ids": [
+      "2302.01318v1"
+    ],
+    "topic": "decoding acceleration",
+    "difficulty": "semantic",
+    "rationale": "This paraphrases the core mechanism (draft model + batch verification) without using the paper's specific term \"speculative sampling,\" testing semantic understanding of the speedup strategy.",
+    "source_title": "Accelerating Large Language Model Decoding with Speculative Sampling",
+    "source_abstrat": "We present speculative sampling, an algorithm for accelerating transformer decoding by enabling the generation of multiple tokens from each transformer call. Our algorithm relies on the observation that the latency of parallel scoring of short continuations, generated by a faster but less powerful draft model, is comparable to that of sampling a single token from the larger target model. This is combined with a novel modified rejection sampling scheme which preserves the distribution of the target model within hardware numerics. We benchmark speculative sampling with Chinchilla, a 70 billion parameter language model, achieving a 2-2.5x decoding speedup in a distributed setup, without compromising the sample quality or making modifications to the model itself.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c053",
+    "question": "How can you shift quantization constraints from hard-to-quantize activations to weights during post-training quantization of language models?",
+    "gold_paper_ids": [
+      "2211.10438v7"
+    ],
+    "topic": "post-training quantization, activation smoothing",
+    "difficulty": "semantic",
+    "rationale": "This question asks about the core insight (moving quantization difficulty from activations to weights via transformation) without using the paper's distinctive name or terminology, testing whether a searcher understands the underlying technique.",
+    "source_title": "SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models",
+    "source_abstrat": "Large language models (LLMs) show excellent performance but are compute- and memory-intensive. Quantization can reduce memory and accelerate inference. However, existing methods cannot maintain accuracy and hardware efficiency at the same time. We propose SmoothQuant, a training-free, accuracy-preserving, and general-purpose post-training quantization (PTQ) solution to enable 8-bit weight, 8-bit activation (W8A8) quantization for LLMs. Based on the fact that weights are easy to quantize while activations are not, SmoothQuant smooths the activation outliers by offline migrating the quantization difficulty from activations to weights with a mathematically equivalent transformation. SmoothQuant enables an INT8 quantization of both weights and activations for all the matrix multiplications in LLMs, including OPT, BLOOM, GLM, MT-NLG, Llama-1/2, Falcon, Mistral, and Mixtral models. We demonstrate up to 1.56x speedup and 2x memory reduction for LLMs with negligible loss in accuracy. SmoothQuant enables serving 530B LLM within a single node. Our work offers a turn-key solution that reduces hardware costs and democratizes LLMs. Code is available at https://github.com/mit-han-lab/smoothquant.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c054",
+    "question": "how can we use model parallelism as a load balancing technique across multiple GPUs to handle sudden traffic spikes when serving different models?",
+    "gold_paper_ids": [
+      "2302.11665v2"
+    ],
+    "topic": "model parallelism, statistical multiplexing",
+    "difficulty": "semantic",
+    "rationale": "This paraphrases the core insight that model parallelism enables device-level multiplexing under bursty loads, without using the paper's distinctive terms like \"AlpaServe\" or the specific framing of \"trade-off space.\"",
+    "source_title": "AlpaServe: Statistical Multiplexing with Model Parallelism for Deep Learning Serving",
+    "source_abstrat": "Model parallelism is conventionally viewed as a method to scale a single large deep learning model beyond the memory limits of a single device. In this paper, we demonstrate that model parallelism can be additionally used for the statistical multiplexing of multiple devices when serving multiple models, even when a single model can fit into a single device. Our work reveals a fundamental trade-off between the overhead introduced by model parallelism and the opportunity to exploit statistical multiplexing to reduce serving latency in the presence of bursty workloads. We explore the new trade-off space and present a novel serving system, AlpaServe, that determines an efficient strategy for placing and parallelizing collections of large deep learning models across a distributed cluster. Evaluation results on production workloads show that AlpaServe can process requests at up to 10x higher rates or 6x more burstiness while staying within latency constraints for more than 99% of requests.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c055",
+    "question": "I need to compress a large language model for inference without retraining it from scratch. Can I do this with just INT8 quantization, and what's the actual speedup I should expect on transformer-based models?",
+    "gold_paper_ids": [
+      "2206.01861v1"
+    ],
+    "topic": "post-training quantization",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core practical problem ZeroQuant addresses—affordable compression of large models post-training—without using distinctive terms like \"ZeroQuant\" or \"knowledge distillation,\" and asks about specific results (INT8 speedups) that a researcher would need answered.",
+    "source_title": "ZeroQuant: Efficient and Affordable Post-Training Quantization for Large-Scale Transformers",
+    "source_abstrat": "How to efficiently serve ever-larger trained natural language models in practice has become exceptionally challenging even for powerful cloud servers due to their prohibitive memory/computation requirements. In this work, we present an efficient and affordable post-training quantization approach to compress large Transformer-based models, termed as ZeroQuant. ZeroQuant is an end-to-end quantization and inference pipeline with three main components: (1) a fine-grained hardware-friendly quantization scheme for both weight and activations; (2) a novel affordable layer-by-layer knowledge distillation algorithm (LKD) even without the access to the original training data; (3) a highly-optimized quantization system backend support to remove the quantization/dequantization overhead. As such, we are able to show that: (1) ZeroQuant can reduce the precision for weights and activations to INT8 in a cost-free way for both BERT and GPT3-style models with minimal accuracy impact, which leads to up to 5.19x/4.16x speedup on those models compared to FP16 inference; (2) ZeroQuant plus LKD affordably quantize the weights in the fully-connected module to INT4 along with INT8 weights in the attention module and INT8 activations, resulting in 3x memory footprint reduction compared to the FP16 model; (3) ZeroQuant can be directly applied to two of the largest open-sourced language models, including GPT-J6B and GPT-NeoX20, for which our INT8 model achieves similar accuracy as the FP16 model but achieves up to 5.2x better efficiency.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c056",
+    "question": "How can you reduce the computational cost of self-attention from quadratic to linear with respect to sequence length?",
+    "gold_paper_ids": [
+      "2006.04768v3"
+    ],
+    "topic": "Efficient Attention",
+    "difficulty": "semantic",
+    "rationale": "This question asks about the core contribution (linear complexity self-attention via low-rank approximation) without using the paper's distinctive term \"Linformer\" or the specific low-rank phrasing, testing whether a semantic search can find this work.",
+    "source_title": "Linformer: Self-Attention with Linear Complexity",
+    "source_abstrat": "Large transformer models have shown extraordinary success in achieving state-of-the-art results in many natural language processing applications. However, training and deploying these models can be prohibitively costly for long sequences, as the standard self-attention mechanism of the Transformer uses $O(n^2)$ time and space with respect to sequence length. In this paper, we demonstrate that the self-attention mechanism can be approximated by a low-rank matrix. We further exploit this finding to propose a new self-attention mechanism, which reduces the overall self-attention complexity from $O(n^2)$ to $O(n)$ in both time and space. The resulting linear transformer, the \\textit{Linformer}, performs on par with standard Transformer models, while being much more memory- and time-efficient.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c057",
+    "question": "Can you find a paper that reduces the computational cost of attention from quadratic to linear while still maintaining the expressiveness of standard softmax attention?",
+    "gold_paper_ids": [
+      "2009.14794v4"
+    ],
+    "topic": "linear attention approximation",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core contribution (linear complexity attention with provable softmax approximation) without using the paper's distinctive name (Performers) or the method acronym (FAVOR+), testing semantic understanding of the key problem.",
+    "source_title": "Rethinking Attention with Performers",
+    "source_abstrat": "We introduce Performers, Transformer architectures which can estimate regular (softmax) full-rank-attention Transformers with provable accuracy, but using only linear (as opposed to quadratic) space and time complexity, without relying on any priors such as sparsity or low-rankness. To approximate softmax attention-kernels, Performers use a novel Fast Attention Via positive Orthogonal Random features approach (FAVOR+), which may be of independent interest for scalable kernel methods. FAVOR+ can be also used to efficiently model kernelizable attention mechanisms beyond softmax. This representational power is crucial to accurately compare softmax with other kernels for the first time on large-scale tasks, beyond the reach of regular Transformers, and investigate optimal attention-kernels. Performers are linear architectures fully compatible with regular Transformers and with strong theoretical guarantees: unbiased or nearly-unbiased estimation of the attention matrix, uniform convergence and low estimation variance. We tested Performers on a rich set of tasks stretching from pixel-prediction through text models to protein sequence modeling. We demonstrate competitive results with other examined efficient sparse and dense attention methods, showcasing effectiveness of the novel attention-learning paradigm leveraged by Performers.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c058",
+    "question": "I'm trying to deploy an LLM on a single GPU with limited memory bandwidth. What techniques can I use to compress the model to 3-bit precision without major accuracy loss?",
+    "gold_paper_ids": [
+      "2306.07629v4"
+    ],
+    "topic": "post-training quantization",
+    "difficulty": "specific",
+    "rationale": "This question targets the core problem and solution of SqueezeLLM (3-bit quantization with minimal degradation for single-GPU inference), using the specific precision target while avoiding direct phrases from the abstract.",
+    "source_title": "SqueezeLLM: Dense-and-Sparse Quantization",
+    "source_abstrat": "Generative Large Language Models (LLMs) have demonstrated remarkable results for a wide range of tasks. However, deploying these models for inference has been a significant challenge due to their unprecedented resource requirements. This has forced existing deployment frameworks to use multi-GPU inference pipelines, which are often complex and costly, or to use smaller and less performant models. In this work, we demonstrate that the main bottleneck for generative inference with LLMs is memory bandwidth, rather than compute, specifically for single batch inference. While quantization has emerged as a promising solution by representing weights with reduced precision, previous efforts have often resulted in notable performance degradation. To address this, we introduce SqueezeLLM, a post-training quantization framework that not only enables lossless compression to ultra-low precisions of up to 3-bit, but also achieves higher quantization performance under the same memory constraint. Our framework incorporates two novel ideas: (i) sensitivity-based non-uniform quantization, which searches for the optimal bit precision assignment based on second-order information; and (ii) the Dense-and-Sparse decomposition that stores outliers and sensitive weight values in an efficient sparse format. When applied to the LLaMA models, our 3-bit quantization significantly reduces the perplexity gap from the FP16 baseline by up to 2.1x as compared to the state-of-the-art methods with the same memory requirement. Furthermore, when deployed on an A6000 GPU, our quantized models achieve up to 2.3x speedup compared to the baseline. Our code is available at https://github.com/SqueezeAILab/SqueezeLLM.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c059",
+    "question": "How can I identify which training examples will be most useful for teaching a language model a specific skill like reasoning, without having to train on everything?",
+    "gold_paper_ids": [
+      "2402.04333v3"
+    ],
+    "topic": "data selection for targeted training",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases the core problem (identifying relevant data for specialized capabilities) without using the paper's distinctive terms like \"influence,\" \"gradient similarity,\" or \"LESS,\" making it a good semantic retrieval test.",
+    "source_title": "LESS: Selecting Influential Data for Targeted Instruction Tuning",
+    "source_abstrat": "Instruction tuning has unlocked powerful capabilities in large language models (LLMs), effectively using combined datasets to develop generalpurpose chatbots. However, real-world applications often require a specialized suite of skills (e.g., reasoning). The challenge lies in identifying the most relevant data from these extensive datasets to effectively develop specific capabilities, a setting we frame as targeted instruction tuning. We propose LESS, an optimizer-aware and practically efficient algorithm to effectively estimate data influences and perform Low-rank gradiEnt Similarity Search for instruction data selection. Crucially, LESS adapts existing influence formulations to work with the Adam optimizer and variable-length instruction data. LESS first constructs a highly reusable and transferable gradient datastore with low-dimensional gradient features and then selects examples based on their similarity to few-shot examples embodying a specific capability. Experiments show that training on a LESS-selected 5% of the data can often outperform training on the full dataset across diverse downstream tasks. Furthermore, the selected data is highly transferable: smaller models can be leveraged to select useful data for larger models and models from different families. Our qualitative analysis shows that our method goes beyond surface form cues to identify data that exemplifies the necessary reasoning skills for the intended downstream application.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c060",
+    "question": "How can you run prefill and decoding on separate GPUs to reduce latency interference in LLM serving?",
+    "gold_paper_ids": [
+      "2401.09670v3"
+    ],
+    "topic": "GPU disaggregation, interference reduction",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core insight (physical separation of computation phases) without using the paper's distinctive framing; a researcher exploring interference-free LLM serving would naturally search this way.",
+    "source_title": "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving",
+    "source_abstrat": "DistServe improves the performance of large language models (LLMs) serving by disaggregating the prefill and decoding computation. Existing LLM serving systems colocate the two phases and batch the computation of prefill and decoding across all users and requests. We find that this strategy not only leads to strong prefill-decoding interferences but also couples the resource allocation and parallelism plans for both phases. LLM applications often emphasize individual latency for each phase: time to first token (TTFT) for the prefill phase and time per output token (TPOT) of each request for the decoding phase. In the presence of stringent latency requirements, existing systems have to prioritize one latency over the other, or over-provision compute resources to meet both.\n  DistServe assigns prefill and decoding computation to different GPUs, hence eliminating prefill-decoding interferences. Given the application's TTFT and TPOT requirements, DistServe co-optimizes the resource allocation and parallelism strategy tailored for each phase. DistServe also places the two phases according to the serving cluster's bandwidth to minimize the communication caused by disaggregation. As a result, DistServe significantly improves LLM serving performance in terms of the maximum rate that can be served within both TTFT and TPOT constraints on each GPU. Our evaluations show that on various popular LLMs, applications, and latency requirements, DistServe can serve 7.4x more requests or 12.6x tighter SLO, compared to state-of-the-art systems, while staying within latency constraints for > 90% of requests.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c061",
+    "question": "How can we improve GPU utilization for transformer attention when the current implementation is only reaching 35% of theoretical peak on modern hardware?",
+    "gold_paper_ids": [
+      "2407.08608v2"
+    ],
+    "topic": "attention optimization GPU",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core motivation and problem statement of the paper without using distinctive terms like \"FlashAttention-2\" or \"H100,\" requiring semantic understanding of the efficiency bottleneck the work addresses.",
+    "source_title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+    "source_abstrat": "Attention, as a core layer of the ubiquitous Transformer architecture, is the bottleneck for large language models and long-context applications. FlashAttention elaborated an approach to speed up attention on GPUs through minimizing memory reads/writes. However, it has yet to take advantage of new capabilities present in recent hardware, with FlashAttention-2 achieving only 35% utilization on the H100 GPU. We develop three main techniques to speed up attention on Hopper GPUs: exploiting asynchrony of the Tensor Cores and TMA to (1) overlap overall computation and data movement via warp-specialization and (2) interleave block-wise matmul and softmax operations, and (3) block quantization and incoherent processing that leverages hardware support for FP8 low-precision. We demonstrate that our method, FlashAttention-3, achieves speedup on H100 GPUs by 1.5-2.0$\\times$ with FP16 reaching up to 740 TFLOPs/s (75% utilization), and with FP8 reaching close to 1.2 PFLOPs/s. We validate that FP8 FlashAttention-3 achieves 2.6$\\times$ lower numerical error than a baseline FP8 attention.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c062",
+    "question": "How can we eliminate the sequential bottleneck between drafting and verification phases in speculative decoding?",
+    "gold_paper_ids": [
+      "2603.03251v3"
+    ],
+    "topic": "Speculative decoding acceleration",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core problem and solution approach (parallelizing draft/verify stages) without using the paper's distinctive terminology, making it a good semantic retrieval test.",
+    "source_title": "Speculative Speculative Decoding",
+    "source_abstrat": "Autoregressive decoding is bottlenecked by its sequential nature. Speculative decoding has become a standard way to accelerate inference by using a fast draft model to predict upcoming tokens from a slower target model, and then verifying them in parallel with a single target model forward pass. However, speculative decoding itself relies on a sequential dependence between speculation and verification. We introduce speculative speculative decoding (SSD) to parallelize these operations. While a verification is ongoing, the draft model predicts likely verification outcomes and prepares speculations pre-emptively for them. If the actual verification outcome is then in the predicted set, a speculation can be returned immediately, eliminating drafting overhead entirely. We identify three key challenges presented by speculative speculative decoding, and suggest principled methods to solve each. The result is Saguaro, an optimized SSD algorithm. Our implementation is on average 30% faster than optimized speculative decoding baselines and up to 5x faster than autoregressive decoding with open source inference engines.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c063",
+    "question": "How can we run very large language models on GPUs that don't have enough memory to hold the entire model, while keeping latency low enough for real-time applications?",
+    "gold_paper_ids": [
+      "2207.00032v1"
+    ],
+    "topic": "out-of-core inference",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core heterogeneous inference challenge (GPU memory overflow + latency constraints) without using the paper's specific terminology (heterogeneous, NVMe, CPU memory), testing whether semantic understanding retrieves this paper.",
+    "source_title": "DeepSpeed Inference: Enabling Efficient Inference of Transformer Models at Unprecedented Scale",
+    "source_abstrat": "The past several years have witnessed the success of transformer-based models, and their scale and application scenarios continue to grow aggressively. The current landscape of transformer models is increasingly diverse: the model size varies drastically with the largest being of hundred-billion parameters; the model characteristics differ due to the sparsity introduced by the Mixture-of-Experts; the target application scenarios can be latency-critical or throughput-oriented; the deployment hardware could be single- or multi-GPU systems with different types of memory and storage, etc. With such increasing diversity and the fast-evolving pace of transformer models, designing a highly performant and efficient inference system is extremely challenging. In this paper, we present DeepSpeed Inference, a comprehensive system solution for transformer model inference to address the above-mentioned challenges. DeepSpeed Inference consists of (1) a multi-GPU inference solution to minimize latency while maximizing the throughput of both dense and sparse transformer models when they fit in aggregate GPU memory, and (2) a heterogeneous inference solution that leverages CPU and NVMe memory in addition to the GPU memory and compute to enable high inference throughput with large models which do not fit in aggregate GPU memory. DeepSpeed Inference reduces latency by up to 7.3X over the state-of-the-art for latency-oriented scenarios and increases throughput by over 1.5x for throughput-oriented scenarios. Moreover, it enables trillion parameter scale inference under real-time latency constraints by leveraging hundreds of GPUs, an unprecedented scale for inference. It can inference 25x larger models than with GPU-only solutions, while delivering a high throughput of 84 TFLOPS (over $50\\%$ of A6000 peak).",
+    "keep": false
+  },
+  {
+    "candidate_id": "c064",
+    "question": "How does the method handle weights that cause large errors when compressed to very low bit widths?",
+    "gold_paper_ids": [
+      "2306.03078v1"
+    ],
+    "topic": "Outlier handling, quantization",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core technical insight of SpQR (identifying and isolating problematic weights) without using the paper's specific terminology, and a researcher exploring outlier-aware compression would naturally ask this.",
+    "source_title": "SpQR: A Sparse-Quantized Representation for Near-Lossless LLM Weight Compression",
+    "source_abstrat": "Recent advances in large language model (LLM) pretraining have led to high-quality LLMs with impressive abilities. By compressing such LLMs via quantization to 3-4 bits per parameter, they can fit into memory-limited devices such as laptops and mobile phones, enabling personalized use. However, quantization down to 3-4 bits per parameter usually leads to moderate-to-high accuracy losses, especially for smaller models in the 1-10B parameter range, which are well-suited for edge deployments. To address this accuracy issue, we introduce the Sparse-Quantized Representation (SpQR), a new compressed format and quantization technique which enables for the first time near-lossless compression of LLMs across model scales, while reaching similar compression levels to previous methods. SpQR works by identifying and isolating outlier weights, which cause particularly-large quantization errors, and storing them in higher precision, while compressing all other weights to 3-4 bits, and achieves relative accuracy losses of less than 1% in perplexity for highly-accurate LLaMA and Falcon LLMs. This makes it possible to run 33B parameter LLM on a single 24 GB consumer GPU without any performance degradation at 15% speedup thus making powerful LLMs available to consumer without any downsides. SpQR comes with efficient algorithms for both encoding weights into its format, as well as decoding them efficiently at runtime. Specifically, we provide an efficient GPU inference algorithm for SpQR which yields faster inference than 16-bit baselines at similar accuracy, while enabling memory compression gains of more than 4x.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c065",
+    "question": "How can you fit a 175 billion parameter model on a single consumer GPU and still achieve reasonable token generation speed?",
+    "gold_paper_ids": [
+      "2303.06865v2"
+    ],
+    "topic": "LLM offloading, memory optimization",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core practical problem the paper solves (high-throughput inference on limited GPU memory) without using distinctive paper terminology like \"FlexGen,\" \"linear programming,\" or specific compression details, making it a paraphrase of the paper's main contribution that a researcher seeking solutions for single-GPU inference would naturally ask.",
+    "source_title": "FlexGen: High-Throughput Generative Inference of Large Language Models with a Single GPU",
+    "source_abstrat": "The high computational and memory requirements of large language model (LLM) inference make it feasible only with multiple high-end accelerators. Motivated by the emerging demand for latency-insensitive tasks with batched processing, this paper initiates the study of high-throughput LLM inference using limited resources, such as a single commodity GPU. We present FlexGen, a high-throughput generation engine for running LLMs with limited GPU memory. FlexGen can be flexibly configured under various hardware resource constraints by aggregating memory and computation from the GPU, CPU, and disk. By solving a linear programming problem, it searches for efficient patterns to store and access tensors. FlexGen further compresses the weights and the attention cache to 4 bits with negligible accuracy loss. These techniques enable FlexGen to have a larger space of batch size choices and thus significantly increase maximum throughput. As a result, when running OPT-175B on a single 16GB GPU, FlexGen achieves significantly higher throughput compared to state-of-the-art offloading systems, reaching a generation throughput of 1 token/s for the first time with an effective batch size of 144. On the HELM benchmark, FlexGen can benchmark a 30B model with a 16GB GPU on 7 representative sub-scenarios in 21 hours. The code is available at https://github.com/FMInference/FlexGen",
+    "keep": false
+  },
+  {
+    "candidate_id": "c066",
+    "question": "How can you improve load balancing when distributing causal attention computation across multiple GPUs or TPUs?",
+    "gold_paper_ids": [
+      "2311.09431v1"
+    ],
+    "topic": "causal attention parallelization",
+    "difficulty": "semantic",
+    "rationale": "This question asks about the core problem the paper addresses—workload imbalance in distributed causal attention—without mentioning the specific solution name or the Ring Attention baseline, making it a genuine research-style query.",
+    "source_title": "Striped Attention: Faster Ring Attention for Causal Transformers",
+    "source_abstrat": "To help address the growing demand for ever-longer sequence lengths in transformer models, Liu et al. recently proposed Ring Attention, an exact attention algorithm capable of overcoming per-device memory bottle- necks by distributing self-attention across multiple devices. In this paper, we study the performance characteristics of Ring Attention in the important special case of causal transformer models, and identify a key workload imbal- ance due to triangular structure of causal attention computations. We propose a simple extension to Ring Attention, which we call Striped Attention to fix this imbalance. Instead of devices having contiguous subsequences, each device has a subset of tokens distributed uniformly throughout the sequence, which we demonstrate leads to more even workloads. In experiments running Striped Attention on A100 GPUs and TPUv4s, we are able to achieve up to 1.45x end-to-end throughput improvements over the original Ring Attention algorithm on causal transformer training at a sequence length of 256k. Furthermore, on 16 TPUv4 chips, we were able to achieve 1.65x speedups at sequence lengths of 786k. We release the code for our experiments as open source",
+    "keep": false
+  },
+  {
+    "candidate_id": "c067",
+    "question": "how can we optimize the memory access patterns in transformer attention to get actual speedups rather than just reducing algorithmic complexity",
+    "gold_paper_ids": [
+      "2205.14135v2"
+    ],
+    "topic": "IO-aware attention optimization",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core motivation and contribution of the paper (accounting for GPU memory hierarchy during attention computation) without using the distinctive \"IO-aware\" framing or \"FlashAttention\" name, requiring understanding of the underlying principle.",
+    "source_title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+    "source_abstrat": "Transformers are slow and memory-hungry on long sequences, since the time and memory complexity of self-attention are quadratic in sequence length. Approximate attention methods have attempted to address this problem by trading off model quality to reduce the compute complexity, but often do not achieve wall-clock speedup. We argue that a missing principle is making attention algorithms IO-aware -- accounting for reads and writes between levels of GPU memory. We propose FlashAttention, an IO-aware exact attention algorithm that uses tiling to reduce the number of memory reads/writes between GPU high bandwidth memory (HBM) and GPU on-chip SRAM. We analyze the IO complexity of FlashAttention, showing that it requires fewer HBM accesses than standard attention, and is optimal for a range of SRAM sizes. We also extend FlashAttention to block-sparse attention, yielding an approximate attention algorithm that is faster than any existing approximate attention method. FlashAttention trains Transformers faster than existing baselines: 15% end-to-end wall-clock speedup on BERT-large (seq. length 512) compared to the MLPerf 1.1 training speed record, 3$\\times$ speedup on GPT-2 (seq. length 1K), and 2.4$\\times$ speedup on long-range arena (seq. length 1K-4K). FlashAttention and block-sparse FlashAttention enable longer context in Transformers, yielding higher quality models (0.7 better perplexity on GPT-2 and 6.4 points of lift on long-document classification) and entirely new capabilities: the first Transformers to achieve better-than-chance performance on the Path-X challenge (seq. length 16K, 61.4% accuracy) and Path-256 (seq. length 64K, 63.1% accuracy).",
+    "keep": false
+  },
+  {
+    "candidate_id": "c068",
+    "question": "what are the main approaches different research groups have taken to reduce the computational overhead of Transformer models?",
+    "gold_paper_ids": [
+      "2009.06732v3"
+    ],
+    "topic": "Transformer efficiency improvements",
+    "difficulty": "semantic",
+    "rationale": "A researcher looking for papers surveying efficiency techniques would naturally ask this, and this paper directly characterizes multiple efficiency-focused variants across domains without lifting the specific model names verbatim.",
+    "source_title": "Efficient Transformers: A Survey",
+    "source_abstrat": "Transformer model architectures have garnered immense interest lately due to their effectiveness across a range of domains like language, vision and reinforcement learning. In the field of natural language processing for example, Transformers have become an indispensable staple in the modern deep learning stack. Recently, a dizzying number of \"X-former\" models have been proposed - Reformer, Linformer, Performer, Longformer, to name a few - which improve upon the original Transformer architecture, many of which make improvements around computational and memory efficiency. With the aim of helping the avid researcher navigate this flurry, this paper characterizes a large and thoughtful selection of recent efficiency-flavored \"X-former\" models, providing an organized and comprehensive overview of existing work and models across multiple domains.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c069",
+    "question": "How can you replace the standard dot-product attention mechanism in Transformers to reduce computational cost when handling longer sequences?",
+    "gold_paper_ids": [
+      "2108.09084v6"
+    ],
+    "topic": "efficient attention mechanism",
+    "difficulty": "semantic",
+    "rationale": "This question targets the core innovation (additive attention as alternative to pairwise interactions) without using distinctive paper terminology, testing whether retrieval systems can surface this work based on the underlying problem it solves.",
+    "source_title": "Fastformer: Additive Attention Can Be All You Need",
+    "source_abstrat": "Transformer is a powerful model for text understanding. However, it is inefficient due to its quadratic complexity to input sequence length. Although there are many methods on Transformer acceleration, they are still either inefficient on long sequences or not effective enough. In this paper, we propose Fastformer, which is an efficient Transformer model based on additive attention. In Fastformer, instead of modeling the pair-wise interactions between tokens, we first use additive attention mechanism to model global contexts, and then further transform each token representation based on its interaction with global context representations. In this way, Fastformer can achieve effective context modeling with linear complexity. Extensive experiments on five datasets show that Fastformer is much more efficient than many existing Transformer models and can meanwhile achieve comparable or even better long text modeling performance.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c070",
+    "question": "How should you design batch processing in an inference system when some sequences can exit early and skip remaining model layers?",
+    "gold_paper_ids": [
+      "2407.20272v1"
+    ],
+    "topic": "early-exit batch scheduling",
+    "difficulty": "semantic",
+    "rationale": "Tests understanding of the core batching challenge for early-exit models without using paper-specific terminology, focusing on the practical problem a practitioner would search for.",
+    "source_title": "An Efficient Inference Framework for Early-exit Large Language Models",
+    "source_abstrat": "Building efficient inference framework has gained increasing interests for research community. Early-exit models, a variant of LLMs, improves the inference efficiency of LLMs by skipping rest layers and directly generate output tokens when they are confident enough. However, there is no work of LLM inference framework that takes early-exit models into consideration. This is non-trivial as prior art on LLM inference cannot be directly applied to early-exit models. In this work, we solves two key challenges in building efficient inference framework for early-exit models: (1) batch inference at iteration-level granularity; and (2) KV cache management. For the former, we propose to process the batch until all sequences surpass the early-exit confidence threshold. For the latter, we propose to fill the KV cache of rest layers before the iteration terminates. Our evaluation shows that, compared with the original vLLM operating at full layers, our solution achieves up to 1.25x speed up.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c071",
+    "question": "how can you fit LLaMA-7B with a million token context into a single A100 GPU without major quality loss?",
+    "gold_paper_ids": [
+      "2401.18079v6"
+    ],
+    "topic": "KV cache compression",
+    "difficulty": "semantic",
+    "rationale": "Tests whether the retrieval system can find this paper based on a practical problem (fitting large contexts in memory) rather than its specific method names or technical acronyms.",
+    "source_title": "KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization",
+    "source_abstrat": "LLMs are seeing growing use for applications which require large context windows, and with these large context windows KV cache activations surface as the dominant contributor to memory consumption during inference. Quantization is a promising approach for compressing KV cache activations; however, existing solutions fail to represent activations accurately in sub-4-bit precision. Our work, KVQuant, facilitates low precision KV cache quantization by incorporating several novel methods: (i) Per-Channel Key Quantization, where we adjust the dimension along which we quantize the Key activations to better match the distribution; (ii) Pre-RoPE Key Quantization, where we quantize Key activations before the rotary positional embedding to mitigate its impact on quantization; (iii) Non-Uniform KV Cache Quantization, where we derive per-layer sensitivity-weighted non-uniform datatypes that better represent the distributions; and (iv) Per-Vector Dense-and-Sparse Quantization, where we isolate outliers separately for each vector to minimize skews in quantization ranges. By applying our method to the LLaMA, Llama-2, Llama-3, and Mistral models, we achieve < 0.1 perplexity degradation with 3-bit quantization on both Wikitext-2 and C4, outperforming existing approaches. Our method enables serving LLaMA-7B with a context length of up to 1 million on a single A100-80GB GPU and up to 10 million on an 8-GPU system. We develop custom CUDA kernels for KVQuant, showing that we can achieve up to ~1.7x speedups, compared to baseline fp16 matrix-vector multiplications, for the LLaMA-7B model.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c072",
+    "question": "How does simple local window attention compare to more complex efficient attention mechanisms when models are pretrained and finetuned on long-context tasks?",
+    "gold_paper_ids": [
+      "2112.07210v2"
+    ],
+    "topic": "long-context attention efficiency",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core research finding without using the paper's exact phrasing, asking about the practical comparison that motivated the entire empirical study.",
+    "source_title": "Simple Local Attentions Remain Competitive for Long-Context Tasks",
+    "source_abstrat": "Many NLP tasks require processing long contexts beyond the length limit of pretrained models. In order to scale these models to longer text sequences, many efficient long-range attention variants have been proposed. Despite the abundance of research along this direction, it is still difficult to gauge the relative effectiveness of these models in practical use cases, e.g., if we apply these models following the pretrain-and-finetune paradigm. In this work, we aim to conduct a thorough analysis of these emerging models with large-scale and controlled experiments. For each attention variant, we pretrain large-size models using the same long-doc corpus and then finetune these models for real-world long-context tasks. Our findings reveal pitfalls of an existing widely-used long-range benchmark and show none of the tested efficient attentions can beat a simple local window attention under standard pretraining paradigms. Further analysis on local attention variants suggests that even the commonly used attention-window overlap is not necessary to achieve good downstream results -- using disjoint local attentions, we are able to build a simpler and more efficient long-doc QA model that matches the performance of Longformer~\\citep{longformer} with half of its pretraining compute.\n  The code to replicate our experiments can be found at https://github.com/pytorch/fairseq/tree/main/examples/xformers",
+    "keep": false
+  },
+  {
+    "candidate_id": "c073",
+    "question": "how can we compress the attention cache in transformer models while keeping most of the values in low precision and handling important outliers separately?",
+    "gold_paper_ids": [
+      "2403.05527v4"
+    ],
+    "topic": "KV cache compression",
+    "difficulty": "semantic",
+    "rationale": "This question paraphrases GEAR's core technical approach (quantization + low-rank + sparse error correction) without using the paper's distinctive terms, testing whether a retrieval system can match conceptual understanding to the implementation.",
+    "source_title": "GEAR: An Efficient KV Cache Compression Recipe for Near-Lossless Generative Inference of LLM",
+    "source_abstrat": "Key-value (KV) caching has become the de-facto to accelerate generation speed for large language models (LLMs) inference. However, the growing cache demand with increasing sequence length has transformed LLM inference to be a memory bound problem, significantly constraining the system throughput. Existing methods rely on dropping unimportant tokens or quantizing all entries uniformly. Such methods, however, often incur high approximation errors to represent the compressed matrices. The autoregressive decoding process further compounds the error of each step, resulting in critical deviation in model generation and deterioration of performance. To tackle this challenge, we propose GEAR, an efficient KV cache compression framework that achieves near-lossless high-ratio compression. GEAR first applies quantization to majority of entries of similar magnitudes to ultra-low precision. It then employs a low rank matrix to approximate the quantization error, and a sparse matrix to remedy individual errors from outlier entries. By adeptly integrating three techniques, GEAR is able to fully exploit their synergistic potentials. Our experiments demonstrate that compared to alternatives, GEAR achieves near-lossless 4-bit KV cache compression with up to 2.38x throughput improvement, while reducing peak-memory size up to 2.29x. Our code is publicly available at https://github.com/HaoKang-Timmy/GEAR.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c074",
+    "question": "How can I reduce the memory footprint of KV cache without retraining the model or tuning hyperparameters during inference?",
+    "gold_paper_ids": [
+      "2410.03111v1"
+    ],
+    "topic": "KV cache compression",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core practical motivation and constraint of the paper—compression without retraining or test-time tuning—without using the paper's distinctive \"low-rank approximation\" or \"progressive compression strategy\" terminology.",
+    "source_title": "LoRC: Low-Rank Compression for LLMs KV Cache with a Progressive Compression Strategy",
+    "source_abstrat": "The Key-Value (KV) cache is a crucial component in serving transformer-based autoregressive large language models (LLMs), enabling faster inference by storing previously computed KV vectors. However, its memory consumption scales linearly with sequence length and batch size, posing a significant bottleneck in LLM deployment. Existing approaches to mitigate this issue include: (1) efficient attention variants integrated in upcycling stages, which requires extensive parameter tuning thus unsuitable for pre-trained LLMs; (2) KV cache compression at test time, primarily through token eviction policies, which often overlook inter-layer dependencies and can be task-specific.\n  This paper introduces an orthogonal approach to KV cache compression. We propose a low-rank approximation of KV weight matrices, allowing for plug-in integration with existing transformer-based LLMs without model retraining. To effectively compress KV cache at the weight level, we adjust for layerwise sensitivity and introduce a progressive compression strategy, which is supported by our theoretical analysis on how compression errors accumulate in deep networks. Our method is designed to function without model tuning in upcycling stages or task-specific profiling in test stages. Extensive experiments with LLaMA models ranging from 8B to 70B parameters across various tasks show that our approach significantly reduces the GPU memory footprint while maintaining performance.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c075",
+    "question": "How can you achieve 4-bit quantization for language models while keeping accuracy high enough for production use?",
+    "gold_paper_ids": [
+      "2310.19102v3"
+    ],
+    "topic": "low-bit quantization",
+    "difficulty": "semantic",
+    "rationale": "Paraphrases the core contribution (mixed-precision/fine-grained quantization for low-bit weights/activations) without using distinctive terms like \"Atom,\" \"mixed-precision,\" or \"fine-grained,\" making it discoverable by semantic search.",
+    "source_title": "Atom: Low-bit Quantization for Efficient and Accurate LLM Serving",
+    "source_abstrat": "The growing demand for Large Language Models (LLMs) in applications such as content generation, intelligent chatbots, and sentiment analysis poses considerable challenges for LLM service providers. To efficiently use GPU resources and boost throughput, batching multiple requests has emerged as a popular paradigm; to further speed up batching, LLM quantization techniques reduce memory consumption and increase computing capacity. However, prevalent quantization schemes (e.g., 8-bit weight-activation quantization) cannot fully leverage the capabilities of modern GPUs, such as 4-bit integer operators, resulting in sub-optimal performance.\n  To maximize LLMs' serving throughput, we introduce Atom, a low-bit quantization method that achieves high throughput improvements with negligible accuracy loss. Atom significantly boosts serving throughput by using low-bit operators and considerably reduces memory consumption via low-bit quantization. It attains high accuracy by applying a novel mixed-precision and fine-grained quantization process. We evaluate Atom on 4-bit weight-activation quantization in the serving context. Atom improves end-to-end throughput (token/s) by up to $7.7\\times$ compared to the FP16 and by $2.5\\times$ compared to INT8 quantization, while maintaining the same latency target.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c076",
+    "question": "How can we speed up LLM decoding by predicting hidden states instead of tokens directly?",
+    "gold_paper_ids": [
+      "2401.15077v3"
+    ],
+    "topic": "speculative sampling, hidden layer prediction",
+    "difficulty": "semantic",
+    "rationale": "This question captures the core technical insight of the paper—shifting prediction from token space to feature/hidden space—without using EAGLE's name or its distinctive terminology, testing whether a retrieval system can find papers on this fundamental architectural idea.",
+    "source_title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+    "source_abstrat": "Autoregressive decoding makes the inference of Large Language Models (LLMs) time-consuming. In this paper, we reconsider speculative sampling and derive two key observations. Firstly, autoregression at the feature (second-to-top-layer) level is more straightforward than at the token level. Secondly, the inherent uncertainty in feature (second-to-top-layer) level autoregression constrains its performance. Based on these insights, we introduce EAGLE (Extrapolation Algorithm for Greater Language-model Efficiency), a simple yet highly efficient speculative sampling framework. By incorporating a token sequence advanced by one time step, EAGLE effectively resolves the uncertainty, enabling precise second-to-top-layer feature prediction with minimal overhead. We conducted comprehensive evaluations of EAGLE, including all models from the Vicuna and LLaMA2-Chat series, the MoE model Mixtral 8x7B Instruct, and tasks in dialogue, code generation, mathematical reasoning, and instruction following. For LLaMA2-Chat 70B, EAGLE achieved a latency speedup ratio of 2.7x-3.5x, doubled throughput, while maintaining the distribution of the generated text.",
+    "keep": false
+  },
+  {
+    "candidate_id": "c077",
+    "question": "How does attention allocation differ across layers of a language model when processing long contexts, and how can this be exploited to compress the KV cache?",
+    "gold_paper_ids": [
+      "2406.02069v4"
+    ],
+    "topic": "KV cache compression patterns",
+    "difficulty": "semantic",
+    "rationale": "Directly addresses the core insight about pyramidal attention patterns and their application to cache optimization, but paraphrases the distinctive \"pyramidal information funneling\" concept in language-agnostic terms.",
+    "source_title": "PyramidKV: Dynamic KV Cache Compression based on Pyramidal Information Funneling",
+    "source_abstrat": "In this study, we investigate whether attention-based information flow inside large language models (LLMs) is aggregated through noticeable patterns for long context processing. Our observations reveal that LLMs aggregate information through Pyramidal Information Funneling where attention is scattering widely in lower layers, progressively consolidating within specific contexts, and ultimately focusing on critical tokens (a.k.a massive activation or attention sink) in higher layers. Motivated by these insights, we developed PyramidKV, a novel and effective KV cache compression method. This approach dynamically adjusts the KV cache size across different layers, allocating more cache in lower layers and less in higher ones, diverging from traditional methods that maintain a uniform KV cache size. Our experimental evaluations, utilizing the LongBench benchmark, show that PyramidKV matches the performance of models with a full KV cache while retaining only 12% of the KV cache, thus significantly reducing memory usage. In scenarios emphasizing memory efficiency, where only 0.7% of the KV cache is maintained, PyramidKV surpasses other KV cache compression techniques, achieving up to a 20.5 absolute accuracy improvement on TREC dataset. In the Needle-in-a-Haystack experiment, PyramidKV outperforms competing methods in maintaining long-context comprehension in LLMs; notably, retaining just 128 KV cache entries enables the LLAMA-3-70B model to achieve 100.0 Acc. performance.",
+    "keep": false
+  }
+]
