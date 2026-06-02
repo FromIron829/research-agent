@@ -1,0 +1,337 @@
+{
+  "question": "How can speculative decoding be made effective at large batch sizes? What are the bottlenecks?",
+  "answer": "I now have comprehensive evidence across multiple papers. Let me synthesize a thorough answer.\n\n---\n\n## Speculative Decoding at Large Batch Sizes: Bottlenecks & Solutions\n\n### Why Speculative Decoding Struggles at Large Batch Sizes\n\nThe core insight is that speculative decoding's benefit is **conditional on the regime of computation**:\n\n#### 1. The Compute-Bound Bottleneck\nAt small batch sizes, decoding is *memory bandwidth-bound* — the bottleneck is loading model weights from memory, not arithmetic operations. Verification of speculated tokens can be done \"for free\" using spare GPU compute capacity. As batch size grows, the improved arithmetic intensity makes linear layers **compute-bound**, saturating the GPU's compute budget. This makes the verification step significantly more expensive relative to standard decoding:\n\n> *\"As batch size grows, the linear layers become compute-bound due to improved arithmetic intensity. This reduces the availability of compute resources that speculative decoding utilizes for parallel verification, essentially increasing the verification to decoding cost ratio.\"* — [MagicDec (page 4)]\n\n> *\"When there is only a single sequence in the batch, decoding is extremely memory bandwidth-bound, and large numbers of FLOPs can be consumed in the verification step of speculative decoding 'for free' without significantly increasing the latency per decoding step. However, at larger batch sizes it is easier for verification to become compute-bound.\"* — [Hydra (page 7)]\n\n#### 2. The Speedup Formula\nThe speedup of speculative decoding depends on three factors [MagicDec (page 4)]:\n- **(a)** Target verification-to-decoding cost ratio: **TV(γ)/TT** → want close to 1\n- **(b)** Draft-to-target cost ratio: **TD/TT** → want close to 0\n- **(c)** Expected accepted generation length: **Ω(γ, α)** → want high\n\nAt large batch sizes on *short sequences*, all three factors degrade: verification becomes expensive (↑ TV/TT), draft models carry large KV caches (↑ TD/TT), and frequent rejections require more costly re-verifications (↓ Ω).\n\n#### 3. The Tree Size Must Be Shrunk\nFor tree-based speculative decoding at larger batch sizes, the token tree must be made *smaller*. SpecInfer found that for BS ≥ 4, using a large tree width *increases* latency due to fewer sparse GPU resources, with a tree width of 2 or 3 achieving the best balance. [SpecInfer (page 13)]. Hydra similarly re-derives the optimal decoding tree per batch size configuration to avoid over-speculating [Hydra (page 7)].\n\n#### 4. Draft Model Memory Footprint Explodes\nWith a separate small draft model, the KV cache of the draft grows linearly with batch size × sequence length. This can cause the draft model's memory footprint to *exceed* that of the target model — e.g., using LLaMA-2-7B as a draft for LLaMA-2-70B can occupy up to 38–140% of the target model's memory footprint [MagicDec (page 6)].\n\n---\n\n### How to Make Speculative Decoding Work at Large Batch Sizes\n\n#### Strategy 1: Target Long-Context Regimes — The \"Critical Sequence Length\" Insight\nThe conventional wisdom that SD fails at large batches is **only true for short sequences**. For *moderate-to-long sequences*, there is a **bottleneck shift**: the KV cache loading cost becomes the dominant factor, and since verification and decoding share the same KV budget, the verification-to-decoding cost ratio *stays close to 1* even at large batch sizes:\n\n> *\"For moderate to long sequences, we observe a transition towards a memory-bound regime since with increasing batch size, the memory cost of loading the KV cache becomes the dominant factor... Because verification and decoding share the same KV budget, their KV cache loading costs are equivalent.\"* — [MagicDec (page 4)]\n\nMagicDec identifies a **critical sequence length S_inflection** beyond which SD speedup actually *increases* with batch size. For LLaMA-3.1-8B, this threshold is ~4,000 tokens. Below it, speedup decreases with batch size; at or above it, speedup grows. This threshold depends on the GPU's FLOPS-to-memory-bandwidth ratio and the model architecture (e.g., GQA models have higher inflection points) [MagicDec (page 5)].\n\n#### Strategy 2: Use Compressed KV Cache Drafting (Self-Speculation)\nInstead of a separate small draft model, use the **target model itself with a sparsified/compressed KV cache** as the draft. This has two crucial advantages at large batch sizes:\n\n- **Lower draft cost**: The KV cache of the compressed draft grows much slower than the target's full KV cache, so the draft-to-target cost ratio (TD/TT) *decreases* with batch size [MagicDec (page 5)].\n- **Higher acceptance rate**: KV compression achieves far higher token acceptance rates than model compression (parameter-efficient small drafts). KV compression can exceed 90% acceptance rate, while small draft models cannot [MagicDec (page 2)].\n\nMagicDec demonstrates **up to 2.51x speedup** for LLaMA-3.1-8B at batch sizes of 32–256 on 8×H100 GPUs using SnapKV-based self-speculation [MagicDec (page 3)].\n\n**KV compression algorithm choice matters**: Static methods (SnapKV, StreamingLLM) avoid expensive KV search overhead; dynamic methods (PQCache) achieve higher acceptance rates but have a batch-size-dependent KV selection cost that can negate the gains at large batches [MagicDec (page 8)].\n\n#### Strategy 3: QuantSpec — Hierarchical Quantized KV Cache\nQuantSpec proposes a draft that uses a **hierarchical INT4 KV cache** (where INT8 = INT4 upper-bits + INT4 lower-bits) to serve as the draft, with the target using INT8. This avoids storing a separate KV cache for draft vs. target, reducing memory overhead while maintaining high acceptance rates — critical for large batches where KV cache memory is the bottleneck [QuantSpec (pages 4–5)].\n\n#### Strategy 4: Parallelize Drafting and Verification (SSD)\nSpeculative Speculative Decoding (SSD/Saguaro) addresses a different bottleneck — the **sequential dependency between drafting and verification**. While verification is ongoing, the draft model pre-speculates for likely verification outcomes. At large batch sizes, the system becomes compute-bound, and SSD recommends a **fast (rather than accurate) backup speculator** for cache misses:\n\n> *\"As the batch size increases, the entire batch stalls on the latency of the backup speculator as cache misses happen more frequently. This forces the choice of a low latency speculator at larger batch sizes.\"* — [Speculative Speculative Decoding (page 11)]\n\nSSD pushes the Pareto frontier on both latency and throughput, with biggest gains at smaller batch sizes, but still provides improvement across the board [Speculative Speculative Decoding (page 12)].\n\n---\n\n### Summary Table\n\n| Bottleneck at Large Batch | Root Cause | Solution |\n|---|---|---|\n| Verification becomes compute-expensive | GPU becomes compute-bound (short seqs) | Target long-context regimes (S > S_inflection) [MagicDec] |\n| Draft KV cache memory explodes | KV scales with B × S | Use self-speculation with compressed KV [MagicDec, QuantSpec] |\n| Low acceptance rate with small draft models | Model compression can't match KV compression | Prefer KV-compressed self-speculation over separate draft [MagicDec] |\n| Over-speculation in token trees | Too many tokens verified saturates GPU | Adapt tree size per batch size [Hydra, SpecInfer] |\n| Sequential draft→verify bottleneck | No overlap between drafting & verification | Parallelize with SSD/Saguaro; use fast backup at high batch [SSD] |",
+  "iterations": 3,
+  "truncated": false,
+  "trace": [
+    {
+      "iteration": 1,
+      "stop_reason": "tool_use",
+      "llm_seconds": 3.441,
+      "input_tokens": 1019,
+      "output_tokens": 173,
+      "text": "I need to find information about speculative decoding at large batch sizes, including techniques to improve effectiveness and the bottlenecks involved. Let me search from multiple angles.",
+      "tool_calls": [
+        {
+          "id": "toolu_016x8mitxpRoMkkGHYHFkwxU",
+          "name": "retrieve",
+          "input": {
+            "query": "speculative decoding large batch sizes throughput",
+            "k": 15
+          },
+          "retrieve_seconds": 1.862,
+          "result_summary": [
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2603.03251v3",
+              "title": "Speculative Speculative Decoding",
+              "page": 12
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 8
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 9
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 8
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 8
+            },
+            {
+              "arxiv_id": "2310.15141v2",
+              "title": "SpecTr: Fast Speculative Decoding via Optimal Transport",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 2
+            }
+          ]
+        },
+        {
+          "id": "toolu_01Mp3EHF4jFFmegLebPtMc4z",
+          "name": "retrieve",
+          "input": {
+            "query": "speculative decoding bottlenecks limitations compute bound",
+            "k": 15
+          },
+          "retrieve_seconds": 0.491,
+          "result_summary": [
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2603.03251v3",
+              "title": "Speculative Speculative Decoding",
+              "page": 12
+            },
+            {
+              "arxiv_id": "2312.12728v3",
+              "title": "Lookahead: An Inference Acceleration Framework for Large Language Model with Lossless Generation Accuracy",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2310.15141v2",
+              "title": "SpecTr: Fast Speculative Decoding via Optimal Transport",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2211.17192v2",
+              "title": "Fast Inference from Transformers via Speculative Decoding",
+              "page": 8
+            },
+            {
+              "arxiv_id": "2502.10424v1",
+              "title": "QuantSpec: Self-Speculative Decoding with Hierarchical Quantized KV Cache",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2502.10424v1",
+              "title": "QuantSpec: Self-Speculative Decoding with Hierarchical Quantized KV Cache",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2603.03251v3",
+              "title": "Speculative Speculative Decoding",
+              "page": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "iteration": 2,
+      "stop_reason": "tool_use",
+      "llm_seconds": 4.285,
+      "input_tokens": 1,
+      "output_tokens": 176,
+      "text": "Now let me get more specific evidence on techniques to address the large-batch problem, particularly around tree size adaptation, KV compression for drafting, and hardware considerations.",
+      "tool_calls": [
+        {
+          "id": "toolu_01RkQVvvGa118WiDbFLKT7Kr",
+          "name": "retrieve",
+          "input": {
+            "query": "speculation tree size adaptation batch size compute bound verification cost",
+            "k": 10
+          },
+          "retrieve_seconds": 0.251,
+          "result_summary": [
+            {
+              "arxiv_id": "2305.09781v4",
+              "title": "SpecInfer: Accelerating Generative Large Language Model Serving with Tree-based Speculative Inference and Verification",
+              "page": 12
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2305.09781v4",
+              "title": "SpecInfer: Accelerating Generative Large Language Model Serving with Tree-based Speculative Inference and Verification",
+              "page": 13
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2603.03251v3",
+              "title": "Speculative Speculative Decoding",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2603.03251v3",
+              "title": "Speculative Speculative Decoding",
+              "page": 11
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 9
+            },
+            {
+              "arxiv_id": "2603.03251v3",
+              "title": "Speculative Speculative Decoding",
+              "page": 3
+            }
+          ]
+        },
+        {
+          "id": "toolu_01VMjPuivN9bVGh4Mz18Dn5e",
+          "name": "retrieve",
+          "input": {
+            "query": "KV cache compression draft model self-speculation sparse KV large batch",
+            "k": 10
+          },
+          "retrieve_seconds": 1.098,
+          "result_summary": [
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 6
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 10
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 6
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2408.11049v5",
+              "title": "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding",
+              "page": 9
+            },
+            {
+              "arxiv_id": "2502.10424v1",
+              "title": "QuantSpec: Self-Speculative Decoding with Hierarchical Quantized KV Cache",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2502.10424v1",
+              "title": "QuantSpec: Self-Speculative Decoding with Hierarchical Quantized KV Cache",
+              "page": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "iteration": 3,
+      "stop_reason": "end_turn",
+      "llm_seconds": 41.966,
+      "input_tokens": 1,
+      "output_tokens": 1980,
+      "text": "I now have comprehensive evidence across multiple papers. Let me synthesize a thorough answer.\n\n---\n\n## Speculative Decoding at Large Batch Sizes: Bottlenecks & Solutions\n\n### Why Speculative Decoding Struggles at Large Batch Sizes\n\nThe core insight is that speculative decoding's benefit is **conditional on the regime of computation**:\n\n#### 1. The Compute-Bound Bottleneck\nAt small batch sizes, decoding is *memory bandwidth-bound* — the bottleneck is loading model weights from memory, not arithmetic operations. Verification of speculated tokens can be done \"for free\" using spare GPU compute capacity. As batch size grows, the improved arithmetic intensity makes linear layers **compute-bound**, saturating the GPU's compute budget. This makes the verification step significantly more expensive relative to standard decoding:\n\n> *\"As batch size grows, the linear layers become compute-bound due to improved arithmetic intensity. This reduces the availability of compute resources that speculative decoding utilizes for parallel verification, essentially increasing the verification to decoding cost ratio.\"* — [MagicDec (page 4)]\n\n> *\"When there is only a single sequence in the batch, decoding is extremely memory bandwidth-bound, and large numbers of FLOPs can be consumed in the verification step of speculative decoding 'for free' without significantly increasing the latency per decoding step. However, at larger batch sizes it is easier for verification to become compute-bound.\"* — [Hydra (page 7)]\n\n#### 2. The Speedup Formula\nThe speedup of speculative decoding depends on three factors [MagicDec (page 4)]:\n- **(a)** Target verification-to-decoding cost ratio: **TV(γ)/TT** → want close to 1\n- **(b)** Draft-to-target cost ratio: **TD/TT** → want close to 0\n- **(c)** Expected accepted generation length: **Ω(γ, α)** → want high\n\nAt large batch sizes on *short sequences*, all three factors degrade: verification becomes expensive (↑ TV/TT), draft models carry large KV caches (↑ TD/TT), and frequent rejections require more costly re-verifications (↓ Ω).\n\n#### 3. The Tree Size Must Be Shrunk\nFor tree-based speculative decoding at larger batch sizes, the token tree must be made *smaller*. SpecInfer found that for BS ≥ 4, using a large tree width *increases* latency due to fewer sparse GPU resources, with a tree width of 2 or 3 achieving the best balance. [SpecInfer (page 13)]. Hydra similarly re-derives the optimal decoding tree per batch size configuration to avoid over-speculating [Hydra (page 7)].\n\n#### 4. Draft Model Memory Footprint Explodes\nWith a separate small draft model, the KV cache of the draft grows linearly with batch size × sequence length. This can cause the draft model's memory footprint to *exceed* that of the target model — e.g., using LLaMA-2-7B as a draft for LLaMA-2-70B can occupy up to 38–140% of the target model's memory footprint [MagicDec (page 6)].\n\n---\n\n### How to Make Speculative Decoding Work at Large Batch Sizes\n\n#### Strategy 1: Target Long-Context Regimes — The \"Critical Sequence Length\" Insight\nThe conventional wisdom that SD fails at large batches is **only true for short sequences**. For *moderate-to-long sequences*, there is a **bottleneck shift**: the KV cache loading cost becomes the dominant factor, and since verification and decoding share the same KV budget, the verification-to-decoding cost ratio *stays close to 1* even at large batch sizes:\n\n> *\"For moderate to long sequences, we observe a transition towards a memory-bound regime since with increasing batch size, the memory cost of loading the KV cache becomes the dominant factor... Because verification and decoding share the same KV budget, their KV cache loading costs are equivalent.\"* — [MagicDec (page 4)]\n\nMagicDec identifies a **critical sequence length S_inflection** beyond which SD speedup actually *increases* with batch size. For LLaMA-3.1-8B, this threshold is ~4,000 tokens. Below it, speedup decreases with batch size; at or above it, speedup grows. This threshold depends on the GPU's FLOPS-to-memory-bandwidth ratio and the model architecture (e.g., GQA models have higher inflection points) [MagicDec (page 5)].\n\n#### Strategy 2: Use Compressed KV Cache Drafting (Self-Speculation)\nInstead of a separate small draft model, use the **target model itself with a sparsified/compressed KV cache** as the draft. This has two crucial advantages at large batch sizes:\n\n- **Lower draft cost**: The KV cache of the compressed draft grows much slower than the target's full KV cache, so the draft-to-target cost ratio (TD/TT) *decreases* with batch size [MagicDec (page 5)].\n- **Higher acceptance rate**: KV compression achieves far higher token acceptance rates than model compression (parameter-efficient small drafts). KV compression can exceed 90% acceptance rate, while small draft models cannot [MagicDec (page 2)].\n\nMagicDec demonstrates **up to 2.51x speedup** for LLaMA-3.1-8B at batch sizes of 32–256 on 8×H100 GPUs using SnapKV-based self-speculation [MagicDec (page 3)].\n\n**KV compression algorithm choice matters**: Static methods (SnapKV, StreamingLLM) avoid expensive KV search overhead; dynamic methods (PQCache) achieve higher acceptance rates but have a batch-size-dependent KV selection cost that can negate the gains at large batches [MagicDec (page 8)].\n\n#### Strategy 3: QuantSpec — Hierarchical Quantized KV Cache\nQuantSpec proposes a draft that uses a **hierarchical INT4 KV cache** (where INT8 = INT4 upper-bits + INT4 lower-bits) to serve as the draft, with the target using INT8. This avoids storing a separate KV cache for draft vs. target, reducing memory overhead while maintaining high acceptance rates — critical for large batches where KV cache memory is the bottleneck [QuantSpec (pages 4–5)].\n\n#### Strategy 4: Parallelize Drafting and Verification (SSD)\nSpeculative Speculative Decoding (SSD/Saguaro) addresses a different bottleneck — the **sequential dependency between drafting and verification**. While verification is ongoing, the draft model pre-speculates for likely verification outcomes. At large batch sizes, the system becomes compute-bound, and SSD recommends a **fast (rather than accurate) backup speculator** for cache misses:\n\n> *\"As the batch size increases, the entire batch stalls on the latency of the backup speculator as cache misses happen more frequently. This forces the choice of a low latency speculator at larger batch sizes.\"* — [Speculative Speculative Decoding (page 11)]\n\nSSD pushes the Pareto frontier on both latency and throughput, with biggest gains at smaller batch sizes, but still provides improvement across the board [Speculative Speculative Decoding (page 12)].\n\n---\n\n### Summary Table\n\n| Bottleneck at Large Batch | Root Cause | Solution |\n|---|---|---|\n| Verification becomes compute-expensive | GPU becomes compute-bound (short seqs) | Target long-context regimes (S > S_inflection) [MagicDec] |\n| Draft KV cache memory explodes | KV scales with B × S | Use self-speculation with compressed KV [MagicDec, QuantSpec] |\n| Low acceptance rate with small draft models | Model compression can't match KV compression | Prefer KV-compressed self-speculation over separate draft [MagicDec] |\n| Over-speculation in token trees | Too many tokens verified saturates GPU | Adapt tree size per batch size [Hydra, SpecInfer] |\n| Sequential draft→verify bottleneck | No overlap between drafting & verification | Parallelize with SSD/Saguaro; use fast backup at high batch [SSD] |",
+      "tool_calls": []
+    }
+  ],
+  "timing": {
+    "total_seconds": 53.396,
+    "llm_seconds": 49.693,
+    "retrieve_seconds": 3.703,
+    "overhead_seconds": 0.001
+  }
+}

@@ -1,0 +1,413 @@
+{
+  "question": "How can speculative decoding be improved by having the draft model predict the target model's internal feature representations instead of its tokens?",
+  "answer": "I now have comprehensive evidence to construct a thorough, well-cited answer. Let me synthesize everything.\n\n---\n\n## Improving Speculative Decoding via Feature-Level Prediction\n\nThe key idea is to have the draft model predict the target model's **internal hidden representations** (features) rather than discrete tokens. This approach has been systematically explored and refined across the EAGLE family of papers, with related contributions from Medusa, Hydra, and ReDrafter.\n\n---\n\n### 1. Why Features? — \"Feature-Level Autoregression is Simpler\"\n\nThe foundational observation is that **predicting the target model's feature sequences is an easier task than predicting token sequences**. As EAGLE states:\n\n> *\"Autoregression at the feature level is simpler than at the token level. Compared to token sequences, which are simple transformations of natural language, feature sequences exhibit more regularity. Autoregressively processing at the feature level and then deriving tokens using the LM Head of the original LLM yields better results than directly autoregressively predicting tokens.\"*\n> — [EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (page 2)]\n\nSpecifically, \"features\" refer to the **second-to-top-layer (pre-LM-Head) activations** of the target LLM. Because the LM Head maps these features to token logits, hitting the right feature is informationally equivalent to predicting the full next-token distribution — but the feature space is smoother and more regular.\n\n---\n\n### 2. The Core EAGLE Architecture\n\nEAGLE's draft model takes two inputs: (1) **the feature sequence** from the target model, and (2) **a token sequence advanced by one time step** (sampling outcomes). It fuses these via:\n\n1. **An Embedding layer**: converts the token sequence into embeddings (using frozen target LLM weights).\n2. **A concatenation step**: fuses feature embeddings (hidden_dim) and token embeddings into a 2×hidden_dim vector.\n3. **An FC layer + Decoder layer (Autoregression Head)**: reduces back to hidden_dim and predicts the *next feature*.\n4. **The LM Head (frozen)**: applies the target LLM's LM Head to the predicted feature to obtain token probabilities.\n\n[EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (page 4)]\n\n---\n\n### 3. Solving the \"Feature Uncertainty\" Problem\n\nA critical challenge with feature-level prediction is **uncertainty**: sampling different tokens from the same distribution produces different downstream features. For example, from feature $f_I$, both \"am\" and \"always\" may follow token \"I\", leading to two divergent feature branches — so the target for the next feature is ambiguous.\n\n**EAGLE's solution**: feed the *sampled token from the previous step* as an extra input to the draft model. This disambiguates the feature prediction — instead of predicting $f_{always}$ blindly, the model now predicts it *given* token $t_{always}$, fully resolving the uncertainty.\n\n> *\"To address this issue, EAGLE inputs the token sequence from one time step ahead, which includes the sampling outcomes, into the draft model... by addressing the uncertainty, the speedup ratio further increases from 1.9x to 2.8x.\"*\n> — [EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (page 2)]\n\n---\n\n### 4. Training Objective: Regression + Classification Loss\n\nTraining the Autoregression Head involves a **combined loss**:\n- **Regression loss** (Smooth L1): predicts the continuous feature vector.\n- **Classification loss**: predicts the token ID directly from the predicted feature via the LM Head.\n\nThe total loss is $L = L_{reg} + w_{cls} L_{cls}$, where $w_{cls} = 0.1$ because the classification loss tends to dominate numerically.\n\n[EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (pages 4–5)]\n\nData augmentation (adding small uniform noise to target features during training) is also used to prevent error accumulation during autoregressive feature generation at inference time. [EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (page 5)]\n\n---\n\n### 5. EAGLE-2: Dynamic Draft Trees on Top of Feature Prediction\n\nEAGLE-2 keeps the feature-level draft model intact but adds a **context-aware dynamic draft tree**. The key finding is that EAGLE's draft model is well-calibrated: its confidence score (output probability) is a good proxy for the actual acceptance rate of each draft token.\n\n> *\"EAGLE is well-calibrated: the confidence score (probability) of the draft model is a good approximation of the acceptance rate of draft tokens.\"*\n> — [EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees (page 2)]\n\nBy using this signal to prune/expand the draft tree dynamically per-context, EAGLE-2 achieves **3.05×–4.26× speedup**, roughly 20–40% faster than EAGLE-1, with no additional training required. [EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees (page 1)]\n\n---\n\n### 6. EAGLE-3: Removing the Feature Prediction Constraint Entirely\n\nEAGLE-3 reveals an important limitation of the feature-prediction paradigm: **the L_fea regression loss acts as a constraint that limits the draft model's expressiveness**, capping the benefit of scaling training data.\n\n> *\"Feature prediction can be seen as an additional constraint, which limits the expressiveness of the draft model and makes it difficult to benefit from increased data.\"*\n> — [EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test (page 2)]\n\nEAGLE-3 makes two key changes:\n1. **Removes the feature prediction loss** ($l_{fea}$) and directly optimizes token prediction. This is paired with a novel **training-time test** technique that simulates multi-step generation during training to prevent distribution shift between steps.\n2. **Replaces top-layer-only features** with **multi-layer feature fusion** (low, mid, and high-level features of the target model concatenated and projected via an FC layer), providing richer semantic information:\n   > *\"Instead of reusing only the top-layer features, we integrate and leverage low-, mid-, and high-level features from the target model, capturing rich semantic information from different layers.\"*\n   > — [EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test (page 3)]\n\nThe ablation study shows both changes are individually and jointly beneficial:\n\n| Method | MT-bench Speedup | GSM8K Speedup |\n|---|---|---|\n| EAGLE-2 | 3.16× | 3.39× |\n| + Remove feature constraint | 3.82× | 3.77× |\n| + Fused features (EAGLE-3) | 4.40× | 4.48× |\n\n[EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test (page 8)]\n\nEAGLE-3 achieves up to **6.5× speedup** and a **38% throughput improvement at batch size 64** in the SGLang framework. [EAGLE-3 (pages 1, 8)]\n\n---\n\n### 7. Related Designs: Medusa, Hydra, and ReDrafter\n\nThe **Medusa** approach uses frozen target LLM features differently: it attaches *K* independent MLP heads directly to the last hidden state of the backbone, each predicting a different lookahead position. However, these heads are **sequentially independent** — they cannot condition on earlier tokens in the candidate continuation. [Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads (page 3)]\n\n**Hydra** fixes this by making draft heads **sequentially dependent**: each head takes the base model's hidden state *plus* the embeddings of previously predicted tokens as input, improving acceptance length by up to 0.46 tokens. [Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding (pages 2, 4)]\n\n**ReDrafter** similarly uses the LLM's last hidden state as input to a lightweight RNN draft model, adding token embeddings as recurrent inputs to capture sequential dependencies. [Recurrent Drafter for Fast Speculative Decoding in Large Language Models (pages 2–3)]\n\n---\n\n### Summary\n\n| Approach | Feature Source | Uncertainty Fix | Key Innovation |\n|---|---|---|---|\n| **Medusa** | Top-layer hidden state (static input to MLP heads) | None | Simple, fast parallel heads |\n| **Hydra** | Top-layer hidden state | Sequential dependence on prior draft tokens | Sequentially-dependent heads |\n| **EAGLE** | Top-layer features (autoregressively predicted) | Feed sampled token at each step | Feature-level autoregression + tree drafts |\n| **EAGLE-2** | Same as EAGLE | Same as EAGLE | Dynamic draft trees via calibrated confidence |\n| **EAGLE-3** | **Fused low/mid/high-layer features** | **Training-time test** (no feature constraint) | Multi-layer fusion + direct token prediction |\n\nThe progression from EAGLE → EAGLE-2 → EAGLE-3 demonstrates that feature-level prediction is a powerful intermediate supervision signal, but its greatest value ultimately comes from using the target model's rich internal representations as *inputs* — not necessarily as prediction *targets*.",
+  "iterations": 4,
+  "truncated": false,
+  "trace": [
+    {
+      "iteration": 1,
+      "stop_reason": "tool_use",
+      "llm_seconds": 2.575,
+      "input_tokens": 1023,
+      "output_tokens": 140,
+      "text": "I need to find papers about speculative decoding improvements that involve draft models predicting target model's internal feature representations rather than just tokens. Let me search from multiple angles.",
+      "tool_calls": [
+        {
+          "id": "toolu_01SzMVMAb6iJoQEYSKoMvV4s",
+          "name": "retrieve",
+          "input": {
+            "query": "speculative decoding draft model predict target model feature representations"
+          },
+          "retrieve_seconds": 0.738,
+          "result_summary": [
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2603.03251v3",
+              "title": "Speculative Speculative Decoding",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 8
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2403.09919v5",
+              "title": "Recurrent Drafter for Fast Speculative Decoding in Large Language Models",
+              "page": 2
+            }
+          ]
+        },
+        {
+          "id": "toolu_01PjkGtNnzXN5cyMZp8pYU7N",
+          "name": "retrieve",
+          "input": {
+            "query": "speculative decoding hidden states alignment draft target model"
+          },
+          "retrieve_seconds": 0.176,
+          "result_summary": [
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2502.10424v1",
+              "title": "QuantSpec: Self-Speculative Decoding with Hierarchical Quantized KV Cache",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2603.03251v3",
+              "title": "Speculative Speculative Decoding",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2603.03251v3",
+              "title": "Speculative Speculative Decoding",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "iteration": 2,
+      "stop_reason": "tool_use",
+      "llm_seconds": 4.294,
+      "input_tokens": 16134,
+      "output_tokens": 157,
+      "text": "I found highly relevant results, particularly about EAGLE. Let me now retrieve more specific details about EAGLE's feature-level autoregression, its training objectives, and EAGLE-3's further innovations.",
+      "tool_calls": [
+        {
+          "id": "toolu_0133boE26FpERTLkUtik9J3s",
+          "name": "retrieve",
+          "input": {
+            "query": "EAGLE feature-level autoregression top-layer features uncertainty token sequence"
+          },
+          "retrieve_seconds": 0.204,
+          "result_summary": [
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 3
+            }
+          ]
+        },
+        {
+          "id": "toolu_01Pia7qExh9iRm32rY6T6tMF",
+          "name": "retrieve",
+          "input": {
+            "query": "EAGLE-3 training feature prediction multi-token prediction cross-layer features"
+          },
+          "retrieve_seconds": 1.145,
+          "result_summary": [
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2401.15077v3",
+              "title": "EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 9
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "iteration": 3,
+      "stop_reason": "tool_use",
+      "llm_seconds": 4.404,
+      "input_tokens": 30046,
+      "output_tokens": 171,
+      "text": "Excellent! I now have rich evidence from EAGLE, EAGLE-2, EAGLE-3, and related papers. Let me also retrieve details about Hydra's use of hidden states and Medusa's draft heads to provide a complete picture of the design space.",
+      "tool_calls": [
+        {
+          "id": "toolu_01BwjiLXzapp767V7pK8zDSw",
+          "name": "retrieve",
+          "input": {
+            "query": "Medusa draft heads hidden state MLP token prediction second-to-top layer"
+          },
+          "retrieve_seconds": 0.185,
+          "result_summary": [
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2401.10774v3",
+              "title": "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2403.09919v5",
+              "title": "Recurrent Drafter for Fast Speculative Decoding in Large Language Models",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2401.10774v3",
+              "title": "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2403.09919v5",
+              "title": "Recurrent Drafter for Fast Speculative Decoding in Large Language Models",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2310.07177v4",
+              "title": "Online Speculative Decoding",
+              "page": 8
+            },
+            {
+              "arxiv_id": "2401.10774v3",
+              "title": "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2402.05109v2",
+              "title": "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding",
+              "page": 5
+            }
+          ]
+        },
+        {
+          "id": "toolu_01XGiYCVuD129gA6GafinZsX",
+          "name": "retrieve",
+          "input": {
+            "query": "EAGLE-2 dynamic draft tree acceptance rate context-dependent"
+          },
+          "retrieve_seconds": 0.178,
+          "result_summary": [
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2503.01840v3",
+              "title": "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 8
+            },
+            {
+              "arxiv_id": "2406.16858v2",
+              "title": "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees",
+              "page": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "iteration": 4,
+      "stop_reason": "end_turn",
+      "llm_seconds": 73.551,
+      "input_tokens": 42902,
+      "output_tokens": 2247,
+      "text": "I now have comprehensive evidence to construct a thorough, well-cited answer. Let me synthesize everything.\n\n---\n\n## Improving Speculative Decoding via Feature-Level Prediction\n\nThe key idea is to have the draft model predict the target model's **internal hidden representations** (features) rather than discrete tokens. This approach has been systematically explored and refined across the EAGLE family of papers, with related contributions from Medusa, Hydra, and ReDrafter.\n\n---\n\n### 1. Why Features? — \"Feature-Level Autoregression is Simpler\"\n\nThe foundational observation is that **predicting the target model's feature sequences is an easier task than predicting token sequences**. As EAGLE states:\n\n> *\"Autoregression at the feature level is simpler than at the token level. Compared to token sequences, which are simple transformations of natural language, feature sequences exhibit more regularity. Autoregressively processing at the feature level and then deriving tokens using the LM Head of the original LLM yields better results than directly autoregressively predicting tokens.\"*\n> — [EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (page 2)]\n\nSpecifically, \"features\" refer to the **second-to-top-layer (pre-LM-Head) activations** of the target LLM. Because the LM Head maps these features to token logits, hitting the right feature is informationally equivalent to predicting the full next-token distribution — but the feature space is smoother and more regular.\n\n---\n\n### 2. The Core EAGLE Architecture\n\nEAGLE's draft model takes two inputs: (1) **the feature sequence** from the target model, and (2) **a token sequence advanced by one time step** (sampling outcomes). It fuses these via:\n\n1. **An Embedding layer**: converts the token sequence into embeddings (using frozen target LLM weights).\n2. **A concatenation step**: fuses feature embeddings (hidden_dim) and token embeddings into a 2×hidden_dim vector.\n3. **An FC layer + Decoder layer (Autoregression Head)**: reduces back to hidden_dim and predicts the *next feature*.\n4. **The LM Head (frozen)**: applies the target LLM's LM Head to the predicted feature to obtain token probabilities.\n\n[EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (page 4)]\n\n---\n\n### 3. Solving the \"Feature Uncertainty\" Problem\n\nA critical challenge with feature-level prediction is **uncertainty**: sampling different tokens from the same distribution produces different downstream features. For example, from feature $f_I$, both \"am\" and \"always\" may follow token \"I\", leading to two divergent feature branches — so the target for the next feature is ambiguous.\n\n**EAGLE's solution**: feed the *sampled token from the previous step* as an extra input to the draft model. This disambiguates the feature prediction — instead of predicting $f_{always}$ blindly, the model now predicts it *given* token $t_{always}$, fully resolving the uncertainty.\n\n> *\"To address this issue, EAGLE inputs the token sequence from one time step ahead, which includes the sampling outcomes, into the draft model... by addressing the uncertainty, the speedup ratio further increases from 1.9x to 2.8x.\"*\n> — [EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (page 2)]\n\n---\n\n### 4. Training Objective: Regression + Classification Loss\n\nTraining the Autoregression Head involves a **combined loss**:\n- **Regression loss** (Smooth L1): predicts the continuous feature vector.\n- **Classification loss**: predicts the token ID directly from the predicted feature via the LM Head.\n\nThe total loss is $L = L_{reg} + w_{cls} L_{cls}$, where $w_{cls} = 0.1$ because the classification loss tends to dominate numerically.\n\n[EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (pages 4–5)]\n\nData augmentation (adding small uniform noise to target features during training) is also used to prevent error accumulation during autoregressive feature generation at inference time. [EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty (page 5)]\n\n---\n\n### 5. EAGLE-2: Dynamic Draft Trees on Top of Feature Prediction\n\nEAGLE-2 keeps the feature-level draft model intact but adds a **context-aware dynamic draft tree**. The key finding is that EAGLE's draft model is well-calibrated: its confidence score (output probability) is a good proxy for the actual acceptance rate of each draft token.\n\n> *\"EAGLE is well-calibrated: the confidence score (probability) of the draft model is a good approximation of the acceptance rate of draft tokens.\"*\n> — [EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees (page 2)]\n\nBy using this signal to prune/expand the draft tree dynamically per-context, EAGLE-2 achieves **3.05×–4.26× speedup**, roughly 20–40% faster than EAGLE-1, with no additional training required. [EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees (page 1)]\n\n---\n\n### 6. EAGLE-3: Removing the Feature Prediction Constraint Entirely\n\nEAGLE-3 reveals an important limitation of the feature-prediction paradigm: **the L_fea regression loss acts as a constraint that limits the draft model's expressiveness**, capping the benefit of scaling training data.\n\n> *\"Feature prediction can be seen as an additional constraint, which limits the expressiveness of the draft model and makes it difficult to benefit from increased data.\"*\n> — [EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test (page 2)]\n\nEAGLE-3 makes two key changes:\n1. **Removes the feature prediction loss** ($l_{fea}$) and directly optimizes token prediction. This is paired with a novel **training-time test** technique that simulates multi-step generation during training to prevent distribution shift between steps.\n2. **Replaces top-layer-only features** with **multi-layer feature fusion** (low, mid, and high-level features of the target model concatenated and projected via an FC layer), providing richer semantic information:\n   > *\"Instead of reusing only the top-layer features, we integrate and leverage low-, mid-, and high-level features from the target model, capturing rich semantic information from different layers.\"*\n   > — [EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test (page 3)]\n\nThe ablation study shows both changes are individually and jointly beneficial:\n\n| Method | MT-bench Speedup | GSM8K Speedup |\n|---|---|---|\n| EAGLE-2 | 3.16× | 3.39× |\n| + Remove feature constraint | 3.82× | 3.77× |\n| + Fused features (EAGLE-3) | 4.40× | 4.48× |\n\n[EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test (page 8)]\n\nEAGLE-3 achieves up to **6.5× speedup** and a **38% throughput improvement at batch size 64** in the SGLang framework. [EAGLE-3 (pages 1, 8)]\n\n---\n\n### 7. Related Designs: Medusa, Hydra, and ReDrafter\n\nThe **Medusa** approach uses frozen target LLM features differently: it attaches *K* independent MLP heads directly to the last hidden state of the backbone, each predicting a different lookahead position. However, these heads are **sequentially independent** — they cannot condition on earlier tokens in the candidate continuation. [Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads (page 3)]\n\n**Hydra** fixes this by making draft heads **sequentially dependent**: each head takes the base model's hidden state *plus* the embeddings of previously predicted tokens as input, improving acceptance length by up to 0.46 tokens. [Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding (pages 2, 4)]\n\n**ReDrafter** similarly uses the LLM's last hidden state as input to a lightweight RNN draft model, adding token embeddings as recurrent inputs to capture sequential dependencies. [Recurrent Drafter for Fast Speculative Decoding in Large Language Models (pages 2–3)]\n\n---\n\n### Summary\n\n| Approach | Feature Source | Uncertainty Fix | Key Innovation |\n|---|---|---|---|\n| **Medusa** | Top-layer hidden state (static input to MLP heads) | None | Simple, fast parallel heads |\n| **Hydra** | Top-layer hidden state | Sequential dependence on prior draft tokens | Sequentially-dependent heads |\n| **EAGLE** | Top-layer features (autoregressively predicted) | Feed sampled token at each step | Feature-level autoregression + tree drafts |\n| **EAGLE-2** | Same as EAGLE | Same as EAGLE | Dynamic draft trees via calibrated confidence |\n| **EAGLE-3** | **Fused low/mid/high-layer features** | **Training-time test** (no feature constraint) | Multi-layer fusion + direct token prediction |\n\nThe progression from EAGLE → EAGLE-2 → EAGLE-3 demonstrates that feature-level prediction is a powerful intermediate supervision signal, but its greatest value ultimately comes from using the target model's rich internal representations as *inputs* — not necessarily as prediction *targets*.",
+      "tool_calls": []
+    }
+  ],
+  "timing": {
+    "total_seconds": 87.451,
+    "llm_seconds": 84.824,
+    "retrieve_seconds": 2.626,
+    "overhead_seconds": 0.001
+  }
+}

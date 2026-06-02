@@ -1,0 +1,165 @@
+{
+  "question": "What does FlashAttention-2 change about work partitioning compared to FlashAttention-1?",
+  "answer": "The retrieved chunks provide very comprehensive evidence. Here is a detailed answer:\n\n---\n\n## FlashAttention-2: Changes to Work Partitioning vs. FlashAttention-1\n\nFlashAttention-2 makes changes at **two levels**: inter-thread-block (macro-level parallelism) and intra-thread-block (warp-level partitioning).\n\n---\n\n### 1. Root Cause of FA-1's Inefficiency\n\nFlashAttention-1 only reached **25–40% of the theoretical maximum FLOPs/s** on A100. Profiling revealed this was due to *suboptimal work partitioning* between thread blocks and warps, causing either **low occupancy** or **unnecessary shared memory reads/writes**. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 1 & 2)]\n\n---\n\n### 2. Thread-Block Level: New Sequence-Length Parallelism\n\n**FA-1** only parallelized across the **batch** and **number of heads** dimensions. When sequences are long (and batch sizes are consequently small), this leaves many GPU multiprocessors idle.\n\n**FA-2** additionally parallelizes across the **sequence length dimension**, scheduling different row-blocks of the attention matrix onto separate thread blocks in the forward pass. This directly improves **occupancy** when batch size or head count is small. In the backward pass, FA-2 similarly parallelizes over sequence length (over column blocks), using atomic adds to update gradients. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 2 & 8)]\n\n---\n\n### 3. Warp Level: Replacing \"Split-K\" with \"Split-Q\"\n\nThis is the most fundamental change in work partitioning:\n\n| | **FlashAttention-1** | **FlashAttention-2** |\n|---|---|---|\n| **What is split across warps** | **K** and **V** split across 4 warps; **Q** shared by all | **Q** split across 4 warps; **K** and **V** shared by all |\n| **Scheme name** | \"Split-K\" | \"Split-Q\" |\n| **Inter-warp communication** | Required — warps must write intermediate results to shared memory, synchronize, then sum | **Not required** — each warp independently computes its output slice |\n| **Shared memory traffic** | High (intermediate writes + sync + reads) | Reduced (no cross-warp intermediates) |\n\n**Why FA-1's split-K was inefficient:** Each warp computed a slice of **QK**ᵀ, then had to multiply with its slice of **V** and *communicate* the result — requiring writes to shared memory, a synchronization barrier, and reads to accumulate the final output. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 9)]\n\n**FA-2's fix:** By splitting **Q** instead, each warp computes a slice of **QK**ᵀ and then multiplies with the *shared* **V** to directly produce its own slice of the output **O**. There is **no need for communication between warps**, eliminating the costly shared-memory round-trips. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 9)]\n\nIn the **backward pass**, FA-2 similarly avoids split-K, though some synchronization is still needed due to the more complex dependencies among **Q, K, V, O, dO, dQ, dK, dV**. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 9)]\n\n---\n\n### 4. Result\n\nThese changes together yield roughly **2× speedup** over FA-1, pushing utilization from 25–40% up to **50–73% of theoretical maximum FLOPs/s** on A100, getting much closer to the efficiency of optimized GEMM kernels. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 1 & 2)]",
+  "iterations": 2,
+  "truncated": false,
+  "trace": [
+    {
+      "iteration": 1,
+      "stop_reason": "tool_use",
+      "llm_seconds": 3.007,
+      "input_tokens": 1021,
+      "output_tokens": 153,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "text": "I need to find details about FlashAttention-2's work partitioning changes compared to FlashAttention-1. Let me retrieve relevant chunks on this topic.",
+      "tool_calls": [
+        {
+          "id": "toolu_01V4ca3VSFQ1bmu5TYY4yhG3",
+          "name": "retrieve",
+          "input": {
+            "query": "FlashAttention-2 work partitioning compared to FlashAttention-1"
+          },
+          "retrieve_seconds": 0.492,
+          "result_summary": [
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 9
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 10
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 12
+            },
+            {
+              "arxiv_id": "2407.08608v2",
+              "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2407.08608v2",
+              "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2407.08608v2",
+              "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+              "page": 9
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 11
+            }
+          ]
+        },
+        {
+          "id": "toolu_01DCte1paPx2kbVPAHZFhzM8",
+          "name": "retrieve",
+          "input": {
+            "query": "FlashAttention-2 thread blocks warps parallelism"
+          },
+          "retrieve_seconds": 0.183,
+          "result_summary": [
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 9
+            },
+            {
+              "arxiv_id": "2407.08608v2",
+              "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2307.08691v1",
+              "title": "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning",
+              "page": 8
+            },
+            {
+              "arxiv_id": "2407.08608v2",
+              "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2407.08608v2",
+              "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2407.08608v2",
+              "title": "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision",
+              "page": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "iteration": 2,
+      "stop_reason": "end_turn",
+      "llm_seconds": 21.424,
+      "input_tokens": 1,
+      "output_tokens": 993,
+      "cache_creation_tokens": 15236,
+      "cache_read_tokens": 0,
+      "text": "The retrieved chunks provide very comprehensive evidence. Here is a detailed answer:\n\n---\n\n## FlashAttention-2: Changes to Work Partitioning vs. FlashAttention-1\n\nFlashAttention-2 makes changes at **two levels**: inter-thread-block (macro-level parallelism) and intra-thread-block (warp-level partitioning).\n\n---\n\n### 1. Root Cause of FA-1's Inefficiency\n\nFlashAttention-1 only reached **25–40% of the theoretical maximum FLOPs/s** on A100. Profiling revealed this was due to *suboptimal work partitioning* between thread blocks and warps, causing either **low occupancy** or **unnecessary shared memory reads/writes**. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 1 & 2)]\n\n---\n\n### 2. Thread-Block Level: New Sequence-Length Parallelism\n\n**FA-1** only parallelized across the **batch** and **number of heads** dimensions. When sequences are long (and batch sizes are consequently small), this leaves many GPU multiprocessors idle.\n\n**FA-2** additionally parallelizes across the **sequence length dimension**, scheduling different row-blocks of the attention matrix onto separate thread blocks in the forward pass. This directly improves **occupancy** when batch size or head count is small. In the backward pass, FA-2 similarly parallelizes over sequence length (over column blocks), using atomic adds to update gradients. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 2 & 8)]\n\n---\n\n### 3. Warp Level: Replacing \"Split-K\" with \"Split-Q\"\n\nThis is the most fundamental change in work partitioning:\n\n| | **FlashAttention-1** | **FlashAttention-2** |\n|---|---|---|\n| **What is split across warps** | **K** and **V** split across 4 warps; **Q** shared by all | **Q** split across 4 warps; **K** and **V** shared by all |\n| **Scheme name** | \"Split-K\" | \"Split-Q\" |\n| **Inter-warp communication** | Required — warps must write intermediate results to shared memory, synchronize, then sum | **Not required** — each warp independently computes its output slice |\n| **Shared memory traffic** | High (intermediate writes + sync + reads) | Reduced (no cross-warp intermediates) |\n\n**Why FA-1's split-K was inefficient:** Each warp computed a slice of **QK**ᵀ, then had to multiply with its slice of **V** and *communicate* the result — requiring writes to shared memory, a synchronization barrier, and reads to accumulate the final output. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 9)]\n\n**FA-2's fix:** By splitting **Q** instead, each warp computes a slice of **QK**ᵀ and then multiplies with the *shared* **V** to directly produce its own slice of the output **O**. There is **no need for communication between warps**, eliminating the costly shared-memory round-trips. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 9)]\n\nIn the **backward pass**, FA-2 similarly avoids split-K, though some synchronization is still needed due to the more complex dependencies among **Q, K, V, O, dO, dQ, dK, dV**. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 9)]\n\n---\n\n### 4. Result\n\nThese changes together yield roughly **2× speedup** over FA-1, pushing utilization from 25–40% up to **50–73% of theoretical maximum FLOPs/s** on A100, getting much closer to the efficiency of optimized GEMM kernels. [FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning (page 1 & 2)]",
+      "tool_calls": []
+    }
+  ],
+  "timing": {
+    "total_seconds": 25.106,
+    "llm_seconds": 24.431,
+    "retrieve_seconds": 0.675,
+    "overhead_seconds": 0.0
+  },
+  "usage": {
+    "input_tokens": 1022,
+    "cache_write_tokens": 15236,
+    "cache_read_tokens": 0,
+    "output_tokens": 1146,
+    "total_input_processed": 16258,
+    "estimated_cost_usd": 0.0774
+  }
+}

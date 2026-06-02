@@ -1,0 +1,278 @@
+{
+  "description": "Stage 2 agent-level eval set. 30 questions across 3 difficulty tiers, grounded in the 77-paper efficient-inference corpus. Measures ANSWER quality (via LLM-as-judge rubric), distinct from Stage 1's retrieval recall. Difficulty = designer intent: simple (one distinctive paper answers it), medium (within-cluster synthesis of 2-3 papers), hard (cross-cluster synthesis, version chains, or gap-finding). 'gold_papers' lists the paper(s) a strong answer should draw on (by manifest title). 'key_points' are topic-level coverage hints for the completeness score, NOT gold facts; the judge verifies specifics against cited sources.",
+  "tiers": {"simple": 10, "medium": 10, "hard": 10},
+  "questions": [
+    {
+      "id": "s01",
+      "tier": "simple",
+      "topic": "quantization",
+      "question": "How does GPTQ achieve 3-4 bit post-training quantization of large language models in just a few GPU hours?",
+      "gold_papers": ["GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformer"],
+      "difficulty_rationale": "Single foundational paper; distinctive name; one mechanism to explain.",
+      "key_points": ["layer-wise one-shot weight quantization", "uses approximate second-order / Hessian information (OBQ lineage)", "3-4 bit, no retraining", "efficiency tricks (lazy batch updates / Cholesky) enabling few-GPU-hour runs"]
+    },
+    {
+      "id": "s02",
+      "tier": "simple",
+      "topic": "serving",
+      "question": "How does PagedAttention prevent KV cache memory fragmentation in vLLM?",
+      "gold_papers": ["Efficient Memory Management for Large Language Model Serving with PagedAttention"],
+      "difficulty_rationale": "Single paper, two distinctive named components (PagedAttention, vLLM).",
+      "key_points": ["KV cache stored in non-contiguous fixed-size blocks (pages)", "virtual-memory / paging analogy", "near-zero internal+external fragmentation", "enables higher batch sizes / sharing via copy-on-write"]
+    },
+    {
+      "id": "s03",
+      "tier": "simple",
+      "topic": "attention-kernel",
+      "question": "How does FlashAttention reduce memory I/O for the attention operation?",
+      "gold_papers": ["FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness"],
+      "difficulty_rationale": "Single paper; must not drift into FA2/FA3 which are also in corpus.",
+      "key_points": ["IO-aware, tiling/blocking to keep data in SRAM", "avoids materializing the full N×N attention matrix in HBM", "online softmax / recomputation in backward", "exact (not approximate) attention"]
+    },
+    {
+      "id": "s04",
+      "tier": "simple",
+      "topic": "quantization",
+      "question": "What does AWQ identify as the small fraction of salient weights, and how does it protect them during quantization?",
+      "gold_papers": ["AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration"],
+      "difficulty_rationale": "Single paper; key concept (salient weights, activation-aware) is distinctive.",
+      "key_points": ["salient weights identified by activation magnitude, not weight magnitude", "~1% of weights matter most", "per-channel scaling to protect them (no mixed precision)", "preserves accuracy at low bit-width"]
+    },
+    {
+      "id": "s05",
+      "tier": "simple",
+      "topic": "quantization",
+      "question": "How does SmoothQuant migrate quantization difficulty from activations to weights?",
+      "gold_papers": ["SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models"],
+      "difficulty_rationale": "Single paper; the migration idea is its signature.",
+      "key_points": ["activation outliers make activation quantization hard", "mathematically equivalent per-channel scaling shifts difficulty W↔A", "enables W8A8", "offline migration factor (alpha)"]
+    },
+    {
+      "id": "s06",
+      "tier": "simple",
+      "topic": "speculative-decoding",
+      "question": "How does Medusa accelerate LLM decoding using multiple decoding heads?",
+      "gold_papers": ["Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads"],
+      "difficulty_rationale": "Single paper; distinctive mechanism.",
+      "key_points": ["extra decoding heads predict multiple future tokens in parallel", "tree-based candidate generation + verification", "no separate draft model needed", "typical acceptance via tree attention"]
+    },
+    {
+      "id": "s07",
+      "tier": "simple",
+      "topic": "kv-cache",
+      "question": "How does H2O (Heavy-Hitter Oracle) decide which KV cache entries to keep or evict?",
+      "gold_papers": ["H$_2$O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models"],
+      "difficulty_rationale": "Single paper; heavy-hitter concept is distinctive.",
+      "key_points": ["small set of 'heavy hitter' tokens dominate attention", "eviction policy keeps heavy hitters + recent tokens", "based on accumulated attention scores", "large KV cache reduction with low quality loss"]
+    },
+    {
+      "id": "s08",
+      "tier": "simple",
+      "topic": "quantization",
+      "question": "What is the core idea behind 1.58-bit LLMs (BitNet b1.58)?",
+      "gold_papers": ["The Era of 1-bit LLMs: All Large Language Models are in 1.58 Bits"],
+      "difficulty_rationale": "Single paper; ternary-weight idea is unmistakable.",
+      "key_points": ["ternary weights {-1, 0, 1} => log2(3) ≈ 1.58 bits", "trained from scratch (quantization-aware), not PTQ", "matches FP baseline at scale", "removes most multiplications / hardware-efficiency implications"]
+    },
+    {
+      "id": "s09",
+      "tier": "simple",
+      "topic": "long-context",
+      "question": "How does StreamingLLM use attention sinks to support effectively infinite-length streaming generation?",
+      "gold_papers": ["Efficient Streaming Language Models with Attention Sinks"],
+      "difficulty_rationale": "Single paper; 'attention sink' is its signature finding.",
+      "key_points": ["initial tokens act as attention sinks absorbing excess attention", "keep first few tokens + sliding recent window", "fixes perplexity collapse when evicting early tokens", "no fine-tuning, constant memory"]
+    },
+    {
+      "id": "s10",
+      "tier": "simple",
+      "topic": "quantization",
+      "question": "How does QLoRA's 4-bit NormalFloat enable fine-tuning a 65B-parameter model on a single GPU?",
+      "gold_papers": ["QLoRA: Efficient Finetuning of Quantized LLMs"],
+      "difficulty_rationale": "Single paper; NF4 + LoRA combo is distinctive.",
+      "key_points": ["4-bit NormalFloat (NF4) information-theoretically optimal for normal weights", "double quantization of constants", "paged optimizers to handle memory spikes", "frozen 4-bit base + trainable LoRA adapters"]
+    },
+
+    {
+      "id": "m01",
+      "tier": "medium",
+      "topic": "quantization",
+      "question": "How do SmoothQuant and AWQ differ in their approach to the activation-outlier problem in LLM quantization?",
+      "gold_papers": ["SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models", "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration"],
+      "difficulty_rationale": "Two papers in same cluster; requires contrasting mechanisms, not just describing one.",
+      "key_points": ["SmoothQuant targets W8A8 by migrating outlier difficulty W↔A", "AWQ is weight-only, uses activation stats to find salient weights", "both 'activation-aware' but different goals (activation quant vs weight quant)", "scaling used differently"]
+    },
+    {
+      "id": "m02",
+      "tier": "medium",
+      "topic": "attention-kernel",
+      "question": "What changed across FlashAttention-1, FlashAttention-2, and FlashAttention-3 in terms of parallelism and hardware utilization?",
+      "gold_papers": ["FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness", "FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning", "FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision"],
+      "difficulty_rationale": "Three-paper version chain; must attribute each change to the right version.",
+      "key_points": ["FA1: IO-awareness, tiling, SRAM", "FA2: better work partitioning (split-Q), seq-len parallelism, fewer non-matmul FLOPs", "FA3: asynchrony (warp-specialization), FP8/low-precision, Hopper-specific", "utilization gains across versions"]
+    },
+    {
+      "id": "m03",
+      "tier": "medium",
+      "topic": "kv-cache",
+      "question": "Compare the KV-cache eviction strategies of H2O, SnapKV, and Scissorhands. What signal does each use to decide what to keep?",
+      "gold_papers": ["H$_2$O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models", "SnapKV: LLM Knows What You are Looking for Before Generation", "Scissorhands: Exploiting the Persistence of Importance Hypothesis for LLM KV Cache Compression at Test Time"],
+      "difficulty_rationale": "Three within-cluster papers; easy to conflate; needs the distinguishing signal of each.",
+      "key_points": ["H2O: accumulated attention scores (heavy hitters) + recent", "SnapKV: uses observation window / prompt attention to select before generation", "Scissorhands: persistence-of-importance hypothesis across steps", "prompt-time vs decode-time selection differences"]
+    },
+    {
+      "id": "m04",
+      "tier": "medium",
+      "topic": "speculative-decoding",
+      "question": "How do EAGLE and Medusa differ in how they produce draft tokens for speculative decoding?",
+      "gold_papers": ["EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty", "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads"],
+      "difficulty_rationale": "Two same-cluster papers; distinct drafting mechanisms.",
+      "key_points": ["Medusa: multiple independent heads predict future positions", "EAGLE: autoregressive at the feature level, reuses second-to-top-layer features", "EAGLE addresses feature uncertainty / better acceptance", "tree verification common to both"]
+    },
+    {
+      "id": "m05",
+      "tier": "medium",
+      "topic": "attention-kernel",
+      "question": "How do Grouped-Query Attention (GQA) and Multi-Query Attention trade off model quality against KV-cache size?",
+      "gold_papers": ["GQA: Training Generalized Multi-Query Transformer Models from Multi-Head Checkpoints", "Fast Transformer Decoding: One Write-Head is All You Need"],
+      "difficulty_rationale": "Two papers; the MQA↔MHA↔GQA spectrum is the point.",
+      "key_points": ["MQA: single shared K/V head => smallest KV cache, larger quality drop", "GQA: groups of query heads share K/V => interpolates MHA↔MQA", "GQA recovers most quality with much smaller cache", "uptraining from MHA checkpoints"]
+    },
+    {
+      "id": "m06",
+      "tier": "medium",
+      "topic": "serving",
+      "question": "DistServe and Splitwise both separate prefill from decode. How does each disaggregate these phases, and why?",
+      "gold_papers": ["DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving", "Splitwise: Efficient generative LLM inference using phase splitting"],
+      "difficulty_rationale": "Two same-cluster papers; similar idea, different motivations/hardware angle.",
+      "key_points": ["prefill is compute-bound, decode is memory-bound", "DistServe: goodput optimization, separate resource allocation per phase + SLO", "Splitwise: phase splitting across (possibly heterogeneous) machines", "KV cache transfer between phases"]
+    },
+    {
+      "id": "m07",
+      "tier": "medium",
+      "topic": "long-context",
+      "question": "How do Linformer and Performer each achieve linear-complexity attention, and how do their approximations differ?",
+      "gold_papers": ["Linformer: Self-Attention with Linear Complexity", "Rethinking Attention with Performers"],
+      "difficulty_rationale": "Two papers; both 'linear attention' but fundamentally different math.",
+      "key_points": ["Linformer: low-rank projection of keys/values (n→k)", "Performer: kernel/random-feature (FAVOR+) approximation of softmax", "Linformer assumes low-rank; Performer gives unbiased kernel estimate", "different failure modes / guarantees"]
+    },
+    {
+      "id": "m08",
+      "tier": "medium",
+      "topic": "quantization",
+      "question": "What does QuIP# add over the original QuIP to push toward near-lossless 2-bit weight quantization?",
+      "gold_papers": ["QuIP: 2-Bit Quantization of Large Language Models With Guarantees", "QuIP#: Even Better LLM Quantization with Hadamard Incoherence and Lattice Codebooks"],
+      "difficulty_rationale": "Version pair; must isolate the incremental contributions.",
+      "key_points": ["QuIP: incoherence processing + adaptive rounding with guarantees", "QuIP#: faster Hadamard-based incoherence, lattice (E8) codebooks", "fine-tuning to recover accuracy", "better 2-bit quality than QuIP"]
+    },
+    {
+      "id": "m09",
+      "tier": "medium",
+      "topic": "long-context",
+      "question": "How do Ring Attention and Striped Attention differ in handling causal masking for long-context training?",
+      "gold_papers": ["Ring Attention with Blockwise Transformers for Near-Infinite Context", "Striped Attention: Faster Ring Attention for Causal Transformers"],
+      "difficulty_rationale": "Version/extension pair; the causal-load-imbalance fix is subtle.",
+      "key_points": ["Ring Attention: blockwise attention sharded across devices in a ring, overlaps comms", "causal masking creates load imbalance in Ring", "Striped: permutes/stripes tokens to balance per-device work under causal mask", "speedup over Ring for causal"]
+    },
+    {
+      "id": "m10",
+      "tier": "medium",
+      "topic": "kv-cache",
+      "question": "How do KIVI and KVQuant differ in their approach to low-bit quantization of the KV cache?",
+      "gold_papers": ["KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache", "KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization"],
+      "difficulty_rationale": "Two same-cluster papers; both KV-quant but different granularity choices.",
+      "key_points": ["KIVI: tuning-free 2-bit, per-channel for keys, per-token for values", "KVQuant: per-channel key quant, non-uniform / outlier handling, very long context", "asymmetry between key and value distributions", "different bit/accuracy/context targets"]
+    },
+
+    {
+      "id": "h01",
+      "tier": "hard",
+      "topic": "speculative-decoding",
+      "question": "How can speculative decoding be made effective at large batch sizes, and what are the bottlenecks?",
+      "gold_papers": ["MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding", "Hydra: Sequentially-Dependent Draft Heads for Medusa Decoding", "SpecInfer: Accelerating Generative Large Language Model Serving with Tree-based Speculative Inference and Verification", "Speculative Speculative Decoding"],
+      "difficulty_rationale": "Cross-paper synthesis; requires the compute-bound vs memory-bound regime argument, not a single paper's claim.",
+      "key_points": ["large batch => verification becomes compute-bound (arithmetic intensity)", "critical sequence length: long-seq shifts bottleneck to KV loading", "draft tree size must shrink with batch size", "compressed-KV self-speculation; parallelizing draft/verify"]
+    },
+    {
+      "id": "h02",
+      "tier": "hard",
+      "topic": "long-context",
+      "question": "Several methods reduce attention complexity toward linear time. What are the main families, and what wall-clock caveats apply across them?",
+      "gold_papers": ["Linformer: Self-Attention with Linear Complexity", "Rethinking Attention with Performers", "Big Bird: Transformers for Longer Sequences", "Longformer: The Long-Document Transformer", "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention", "Fastformer: Additive Attention Can Be All You Need", "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness"],
+      "difficulty_rationale": "Cross-cluster taxonomy + a non-obvious caveat (FLOPs ≠ wall-clock).",
+      "key_points": ["low-rank (Linformer), kernel/random-feature (Performer), sparse/windowed (BigBird, Longformer), Nyström, additive (Fastformer)", "linear FLOPs often don't yield wall-clock speedup (memory I/O)", "FlashAttention point: exact attention can beat approximations in practice", "causal-masking difficulties for some kernels"]
+    },
+    {
+      "id": "h03",
+      "tier": "hard",
+      "topic": "kv-cache",
+      "question": "KV-cache eviction and KV-cache quantization both shrink the cache. When would you prefer eviction (e.g. H2O, SnapKV) over quantization (e.g. KIVI, KVQuant), and can they be composed?",
+      "gold_papers": ["H$_2$O: Heavy-Hitter Oracle for Efficient Generative Inference of Large Language Models", "SnapKV: LLM Knows What You are Looking for Before Generation", "KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache", "KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization"],
+      "difficulty_rationale": "Cross-sub-cluster synthesis + tradeoff reasoning + composition (a question no single paper fully answers).",
+      "key_points": ["eviction drops tokens (lossy in token dimension); quant keeps all tokens at lower precision", "eviction risks dropping later-needed context; quant preserves coverage", "memory-savings vs accuracy tradeoffs differ", "composition: evict then quantize the survivors (orthogonal axes) — reason about it even if no paper states it"]
+    },
+    {
+      "id": "h04",
+      "tier": "hard",
+      "topic": "cross-cutting",
+      "question": "How does the compute-bound vs memory-bound (arithmetic intensity) distinction explain why different efficiency techniques help in different regimes of batch size and sequence length?",
+      "gold_papers": ["FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness", "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding", "Efficiently Scaling Transformer Inference"],
+      "difficulty_rationale": "Connects a single physical concept across multiple papers/techniques; tests conceptual synthesis.",
+      "key_points": ["decode at small batch = memory-bandwidth-bound; large batch/prefill = compute-bound", "FlashAttention targets memory I/O", "speculative decoding 'free' only when compute is idle (low batch)", "roofline / arithmetic-intensity framing ties them together"]
+    },
+    {
+      "id": "h05",
+      "tier": "hard",
+      "topic": "cross-cutting",
+      "question": "Speculative decoding needs a cheap draft, while KV quantization changes the model's memory profile. Which KV/quantization techniques are compatible with self-speculation, and where do they conflict?",
+      "gold_papers": ["QuantSpec: Self-Speculative Decoding with Hierarchical Quantized KV Cache", "MagicDec: Breaking the Latency-Throughput Tradeoff for Long Context Generation with Speculative Decoding", "KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache"],
+      "difficulty_rationale": "Gap/synthesis: requires identifying the one paper that jointly addresses it (QuantSpec) and reasoning about compatibility — high hallucination risk if the agent invents combinations.",
+      "key_points": ["QuantSpec: self-speculation using a hierarchical quantized KV cache as the draft", "MagicDec: compressed-KV self-speculation at large batch/long context", "draft must be cheaper but aligned enough for high acceptance", "honest treatment of what is vs isn't directly studied"]
+    },
+    {
+      "id": "h06",
+      "tier": "hard",
+      "topic": "long-context",
+      "question": "For ultra-long-context inference, what is the combined story across attention kernels, KV-cache management, and sparse attention — and where do these approaches conflict or overlap?",
+      "gold_papers": ["Ring Attention with Blockwise Transformers for Near-Infinite Context", "Efficient Streaming Language Models with Attention Sinks", "SnapKV: LLM Knows What You are Looking for Before Generation", "Big Bird: Transformers for Longer Sequences"],
+      "difficulty_rationale": "Cross-cluster integration across three different mechanism families.",
+      "key_points": ["exact-but-distributed (Ring) vs sparse-approximate (BigBird) vs cache-eviction (SnapKV, StreamingLLM)", "different things they trade away (compute/comm vs accuracy vs dropped tokens)", "they operate at different layers and can compose", "no single approach solves all of long-context"]
+    },
+    {
+      "id": "h07",
+      "tier": "hard",
+      "topic": "cross-cutting",
+      "question": "Does the corpus contain a method that jointly quantizes BOTH the model weights and the KV cache, or is that a gap? What would combining weight quantization (e.g. GPTQ/AWQ) with KV-cache quantization (e.g. KIVI) entail?",
+      "gold_papers": ["GPTQ: Accurate Post-Training Quantization for Generative Pre-trained Transformer", "AWQ: Activation-aware Weight Quantization for LLM Compression and Acceleration", "KIVI: A Tuning-Free Asymmetric 2bit Quantization for KV Cache", "Atom: Low-bit Quantization for Efficient and Accurate LLM Serving", "KVQuant: Towards 10 Million Context Length LLM Inference with KV Cache Quantization"],
+      "difficulty_rationale": "Gap-probe whose honest answer is 'NOT a gap': Atom genuinely combines low-bit weight/activation AND KV-cache quantization in one framework, and KIVI/KVQuant note weight-quant compatibility. Tests whether the agent finds the real joint method and reasons about the orthogonal axes WITHOUT overstating or mis-citing what each paper claims (e.g. fabricating a 'joint quantization' section).",
+      "key_points": ["weight-quant (GPTQ/AWQ) targets static weights; KV-quant (KIVI/KVQuant) targets the streaming KV tensor — different tensors, different methods (offline second-order calibration unsuitable for streaming KV)", "NOT a gap: Atom jointly quantizes weights/activations + KV cache end-to-end; KIVI/KVQuant explicitly note compatibility with weight-only quant (orthogonal axes)", "what joint application entails: independent compression axes, different outlier structures, combined/additive error budget", "credit for correctly identifying the joint method (Atom) and honest scoping; penalize fabricated or mis-cited specifics"]
+    },
+    {
+      "id": "h08",
+      "tier": "hard",
+      "topic": "serving",
+      "question": "Across the serving systems in the corpus (vLLM, Sarathi-Serve, DeepSpeed-FastGen, DistServe), what are the distinct levers for improving the throughput-latency tradeoff, and do any of them conflict?",
+      "gold_papers": ["Efficient Memory Management for Large Language Model Serving with PagedAttention", "Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve", "DeepSpeed-FastGen: High-throughput Text Generation for LLMs via MII and DeepSpeed-Inference", "DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving"],
+      "difficulty_rationale": "Cross-paper synthesis within serving; each contributes a different lever (memory, chunked-prefill, dynamic splitfuse, disaggregation).",
+      "key_points": ["vLLM: paged KV memory => batch size", "Sarathi: chunked prefill to avoid stalls / balance prefill+decode", "DeepSpeed-FastGen: Dynamic SplitFuse", "DistServe: phase disaggregation; tension between batching for throughput vs latency SLOs"]
+    },
+    {
+      "id": "h09",
+      "tier": "hard",
+      "topic": "speculative-decoding",
+      "question": "The corpus contains EAGLE, EAGLE-2, and EAGLE-3. Trace what each version changed and what problem each addressed.",
+      "gold_papers": ["EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty", "EAGLE-2: Faster Inference of Language Models with Dynamic Draft Trees", "EAGLE-3: Scaling up Inference Acceleration of Large Language Models via Training-Time Test"],
+      "difficulty_rationale": "Three-version evolution narrative; must keep contributions correctly ordered and not blur versions.",
+      "key_points": ["EAGLE: feature-level autoregression, addresses feature uncertainty", "EAGLE-2: dynamic / context-aware draft trees (not static)", "EAGLE-3: training-time test, removes feature-prediction constraint, scaling", "each builds on the prior"]
+    },
+    {
+      "id": "h10",
+      "tier": "hard",
+      "topic": "cross-cutting",
+      "question": "What approaches in the corpus attack the sequential-dependency bottleneck of autoregressive decoding — spanning speculative decoding and parallel/blockwise methods — and what are their fundamental limits?",
+      "gold_papers": ["Fast Inference from Transformers via Speculative Decoding", "Accelerating Large Language Model Decoding with Speculative Sampling", "Medusa: Simple LLM Inference Acceleration Framework with Multiple Decoding Heads", "Lookahead: An Inference Acceleration Framework for Large Language Model with Lossless Generation Accuracy"],
+      "difficulty_rationale": "Cross-paradigm synthesis + a limits/gap discussion (acceptance rate, verification cost, memory).",
+      "key_points": ["speculative decoding: draft+verify, limited by acceptance rate & draft cost", "parallel decoding heads / Lookahead (Jacobi-style n-gram) reduce serial steps", "all are bounded by verification/compute and target-model fidelity", "fundamental limit: still need target model to verify => no free lunch at high batch"]
+    }
+  ]
+}

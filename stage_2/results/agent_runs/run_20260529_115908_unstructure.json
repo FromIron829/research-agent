@@ -1,0 +1,341 @@
+{
+  "question": "How can attention complexity be reduced to linear time?",
+  "answer": "I now have comprehensive evidence from multiple papers. Let me compile a thorough, well-cited answer.\n\n---\n\n## Reducing Attention Complexity to Linear Time\n\nStandard self-attention has **O(n²)** time and memory complexity because every token attends to every other token, requiring a full n×n attention matrix [Efficient Transformers: A Survey (page 5)]. Several families of techniques have been developed to bring this down to **O(n)**.\n\n---\n\n### 1. 🔵 Low-Rank / Projection Methods\n\n#### **Linformer** — Low-rank matrix projection\nThe key insight is that the self-attention context mapping matrix **P** is approximately low-rank. Linformer adds two learned projection matrices **Eᵢ, Fᵢ ∈ ℝⁿˣᵏ** to project keys and values from dimension n down to a small k, where k ≪ n. This reduces the attention complexity from **O(n²) to O(nk)**, and since k can be chosen as O(d/ε²) independent of n, the overall complexity is **O(n)** [Linformer: Self-Attention with Linear Complexity (page 1, 4, 5)]. A formal theorem guarantees that this linear self-attention approximates the true attention output with at most ε error [Linformer: Self-Attention with Linear Complexity (page 5)].\n\n#### **Nyströmformer** — Nyström matrix approximation\nNyströmformer selects a small set of **m ≪ n landmark points** from queries and keys (via segment-means pooling, costing O(n)), then reconstructs the full n×n softmax attention matrix as a product of three matrices of sizes n×m, m×m, and m×n, avoiding computing the full n×n matrix. When m ≪ n, the overall time and memory complexity is **O(n)** [Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention (pages 1, 5)].\n\n---\n\n### 2. 🟢 Kernel / Feature Map Methods\n\n#### **Performers (FAVOR+)** — Random feature kernel approximation\nPerformers rewrite the softmax attention matrix using a **kernel function** K(qᵢ, kⱼ) and approximate it via random feature maps φ(·), such that K(q,k) ≈ φ(q)ᵀφ(k). By reordering the matrix multiplications using the associativity of matrix products — computing (K'ᵀV) first instead of (QKᵀ) — the n×n matrix is never materialized. The resulting time complexity is **O(Lrd)** and memory is **O(Lr + Ld + rd)**, compared to O(L²d) for standard attention [Rethinking Attention with Performers (page 3)].\n\n#### **Linear Transformer** — Kernel-based associative rewriting\nLinear Transformer expresses the similarity function as a kernel sim(q,k) = φ(q)ᵀφ(k) and uses the **associative property of matrix multiplication** to rewrite the accumulated attention value. For causal attention, the accumulated key-value matrix can be maintained as an RNN-like recurrence state, reducing attention to **linear time and constant memory**. With the ELU-based feature map, the end-to-end complexity is **O(Nd²)** [Efficient Transformers: A Survey (pages 21–22)].\n\n---\n\n### 3. 🟡 Sparse Attention Methods\n\nRather than approximating the full matrix, sparse methods restrict *which* token pairs interact.\n\n#### **Longformer** — Sliding window + global tokens\nLongformer replaces full attention with a **sliding window attention** of width k (each token attends only to its k nearest neighbors), bringing complexity from O(n²) to **O(nk)**. For classification tasks, a small number of **global tokens** (e.g., [CLS]) are allowed to attend to all positions. Since k is fixed and small relative to n, this scales linearly [Longformer: The Long-Document Transformer (page 3); Efficient Transformers: A Survey (page 17)].\n\n#### **BigBird** — Random + window + global sparse attention\nBigBird combines three sparse attention patterns: (1) **g global tokens** (attend to all), (2) **sliding window** attention of width w (local), and (3) **r random keys** per query. The resulting complexity is **O(n)** [Big Bird: Transformers for Longer Sequences (pages 2, 10); Efficient Transformers: A Survey (page 18)]. Crucially, BigBird is theoretically proven to be a **universal approximator** of sequence-to-sequence functions and Turing complete, matching the expressiveness of full attention [Big Bird: Transformers for Longer Sequences (page 4)].\n\n---\n\n### 4. 🟠 Additive Attention Methods\n\n#### **Fastformer** — Global context via additive attention\nInstead of modeling all pairwise token interactions, Fastformer uses **additive attention** to first compress the sequence into a single global context vector, then models each token's interaction with this global context via **element-wise product**. This achieves **O(N·d)** complexity — the simplest among comparable methods — depending only on sequence length and hidden dimension [Fastformer: Additive Attention Can Be All You Need (pages 1, 7)].\n\n---\n\n### 5. ⚠️ Important Caveat: Theoretical vs. Wall-Clock Efficiency\n\nDespite linear theoretical complexity, many of these methods do **not always translate to real-world speedups**:\n- Linear attention models may actually be *slower* than quadratic attention for short sequences [Efficient Transformers: A Survey (page 5, 30)].\n- Kernel-based methods (Performers, Linear Transformer) face significant challenges with **causal masking** during autoregressive training, because they require a sequential left-to-right scan, making parallelized training prohibitively slow [Efficient Transformers: A Survey (page 21)].\n- FlashAttention, while still **O(n²) in compute**, achieves practical speedups by being **IO-aware** — minimizing HBM memory reads/writes via tiling — showing that wall-clock speed depends as much on memory access patterns as on FLOP counts [FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness (pages 1–2)].\n\n---\n\n### Summary Table\n\n| Method | Approach | Complexity |\n|---|---|---|\n| **Linformer** | Low-rank key/value projection | O(n) |\n| **Nyströmformer** | Nyström landmark approximation | O(n) |\n| **Performer (FAVOR+)** | Random feature kernel maps | O(Lrd) ≈ O(n) |\n| **Linear Transformer** | Kernel + matrix associativity | O(Nd²) |\n| **Longformer** | Sliding window + global tokens | O(nk) |\n| **BigBird** | Random + window + global sparse | O(n) |\n| **Fastformer** | Additive attention + global context | O(Nd) |\n\n*[Fastformer: Additive Attention Can Be All You Need (page 7)]*",
+  "iterations": 3,
+  "truncated": false,
+  "trace": [
+    {
+      "iteration": 1,
+      "stop_reason": "tool_use",
+      "llm_seconds": 4.248,
+      "input_tokens": 1007,
+      "output_tokens": 156,
+      "cache_creation_tokens": 0,
+      "cache_read_tokens": 0,
+      "text": "I need to find papers about reducing attention complexity to linear time, covering techniques like sparse attention, linear attention, approximate attention, etc.",
+      "tool_calls": [
+        {
+          "id": "toolu_01FD25hJBC4yJZgHo932BG7Z",
+          "name": "retrieve",
+          "input": {
+            "query": "reduce attention complexity linear time",
+            "k": 15
+          },
+          "retrieve_seconds": 1.04,
+          "result_summary": [
+            {
+              "arxiv_id": "2006.04768v3",
+              "title": "Linformer: Self-Attention with Linear Complexity",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2108.09084v6",
+              "title": "Fastformer: Additive Attention Can Be All You Need",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2112.05682v3",
+              "title": "Self-attention Does Not Need $O(n^2)$ Memory",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2205.14135v2",
+              "title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2112.05682v3",
+              "title": "Self-attention Does Not Need $O(n^2)$ Memory",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2112.05682v3",
+              "title": "Self-attention Does Not Need $O(n^2)$ Memory",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2006.04768v3",
+              "title": "Linformer: Self-Attention with Linear Complexity",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 21
+            },
+            {
+              "arxiv_id": "2007.14062v2",
+              "title": "Big Bird: Transformers for Longer Sequences",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2006.04768v3",
+              "title": "Linformer: Self-Attention with Linear Complexity",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2009.14794v4",
+              "title": "Rethinking Attention with Performers",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2108.09084v6",
+              "title": "Fastformer: Additive Attention Can Be All You Need",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2205.14135v2",
+              "title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2006.04768v3",
+              "title": "Linformer: Self-Attention with Linear Complexity",
+              "page": 4
+            }
+          ]
+        },
+        {
+          "id": "toolu_0167dK17L1Exu9ps7PLZFeHk",
+          "name": "retrieve",
+          "input": {
+            "query": "linear attention approximation efficient transformer",
+            "k": 15
+          },
+          "retrieve_seconds": 1.091,
+          "result_summary": [
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 21
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 27
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 21
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 22
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2305.19370v3",
+              "title": "Blockwise Parallel Transformer for Large Context Models",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2108.09084v6",
+              "title": "Fastformer: Additive Attention Can Be All You Need",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2310.01889v4",
+              "title": "Ring Attention with Blockwise Transformers for Near-Infinite Context",
+              "page": 9
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 9
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 18
+            },
+            {
+              "arxiv_id": "2205.14135v2",
+              "title": "FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 30
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "iteration": 2,
+      "stop_reason": "tool_use",
+      "llm_seconds": 3.876,
+      "input_tokens": 1,
+      "output_tokens": 170,
+      "cache_creation_tokens": 20550,
+      "cache_read_tokens": 0,
+      "text": "Now let me retrieve more specific details on sparse attention (BigBird, Longformer) and kernel/Nyström methods.",
+      "tool_calls": [
+        {
+          "id": "toolu_01SvrG1BB1pYdhQZHe2J5hwi",
+          "name": "retrieve",
+          "input": {
+            "query": "sparse attention BigBird Longformer local global random linear complexity",
+            "k": 10
+          },
+          "retrieve_seconds": 0.21,
+          "result_summary": [
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 17
+            },
+            {
+              "arxiv_id": "2004.05150v2",
+              "title": "Longformer: The Long-Document Transformer",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2007.14062v2",
+              "title": "Big Bird: Transformers for Longer Sequences",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2007.14062v2",
+              "title": "Big Bird: Transformers for Longer Sequences",
+              "page": 3
+            },
+            {
+              "arxiv_id": "2007.14062v2",
+              "title": "Big Bird: Transformers for Longer Sequences",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2007.14062v2",
+              "title": "Big Bird: Transformers for Longer Sequences",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2009.06732v3",
+              "title": "Efficient Transformers: A Survey",
+              "page": 18
+            },
+            {
+              "arxiv_id": "2108.09084v6",
+              "title": "Fastformer: Additive Attention Can Be All You Need",
+              "page": 7
+            },
+            {
+              "arxiv_id": "2007.14062v2",
+              "title": "Big Bird: Transformers for Longer Sequences",
+              "page": 10
+            }
+          ]
+        },
+        {
+          "id": "toolu_01Cw6GrPvv8rwweZW7onqFEm",
+          "name": "retrieve",
+          "input": {
+            "query": "Nyström approximation self-attention landmark points",
+            "k": 8
+          },
+          "retrieve_seconds": 0.186,
+          "result_summary": [
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 6
+            },
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 5
+            },
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 2
+            },
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 4
+            },
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 1
+            },
+            {
+              "arxiv_id": "2102.03902v3",
+              "title": "Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention",
+              "page": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "iteration": 3,
+      "stop_reason": "end_turn",
+      "llm_seconds": 36.201,
+      "input_tokens": 1,
+      "output_tokens": 1776,
+      "cache_creation_tokens": 14031,
+      "cache_read_tokens": 20550,
+      "text": "I now have comprehensive evidence from multiple papers. Let me compile a thorough, well-cited answer.\n\n---\n\n## Reducing Attention Complexity to Linear Time\n\nStandard self-attention has **O(n²)** time and memory complexity because every token attends to every other token, requiring a full n×n attention matrix [Efficient Transformers: A Survey (page 5)]. Several families of techniques have been developed to bring this down to **O(n)**.\n\n---\n\n### 1. 🔵 Low-Rank / Projection Methods\n\n#### **Linformer** — Low-rank matrix projection\nThe key insight is that the self-attention context mapping matrix **P** is approximately low-rank. Linformer adds two learned projection matrices **Eᵢ, Fᵢ ∈ ℝⁿˣᵏ** to project keys and values from dimension n down to a small k, where k ≪ n. This reduces the attention complexity from **O(n²) to O(nk)**, and since k can be chosen as O(d/ε²) independent of n, the overall complexity is **O(n)** [Linformer: Self-Attention with Linear Complexity (page 1, 4, 5)]. A formal theorem guarantees that this linear self-attention approximates the true attention output with at most ε error [Linformer: Self-Attention with Linear Complexity (page 5)].\n\n#### **Nyströmformer** — Nyström matrix approximation\nNyströmformer selects a small set of **m ≪ n landmark points** from queries and keys (via segment-means pooling, costing O(n)), then reconstructs the full n×n softmax attention matrix as a product of three matrices of sizes n×m, m×m, and m×n, avoiding computing the full n×n matrix. When m ≪ n, the overall time and memory complexity is **O(n)** [Nyströmformer: A Nyström-Based Algorithm for Approximating Self-Attention (pages 1, 5)].\n\n---\n\n### 2. 🟢 Kernel / Feature Map Methods\n\n#### **Performers (FAVOR+)** — Random feature kernel approximation\nPerformers rewrite the softmax attention matrix using a **kernel function** K(qᵢ, kⱼ) and approximate it via random feature maps φ(·), such that K(q,k) ≈ φ(q)ᵀφ(k). By reordering the matrix multiplications using the associativity of matrix products — computing (K'ᵀV) first instead of (QKᵀ) — the n×n matrix is never materialized. The resulting time complexity is **O(Lrd)** and memory is **O(Lr + Ld + rd)**, compared to O(L²d) for standard attention [Rethinking Attention with Performers (page 3)].\n\n#### **Linear Transformer** — Kernel-based associative rewriting\nLinear Transformer expresses the similarity function as a kernel sim(q,k) = φ(q)ᵀφ(k) and uses the **associative property of matrix multiplication** to rewrite the accumulated attention value. For causal attention, the accumulated key-value matrix can be maintained as an RNN-like recurrence state, reducing attention to **linear time and constant memory**. With the ELU-based feature map, the end-to-end complexity is **O(Nd²)** [Efficient Transformers: A Survey (pages 21–22)].\n\n---\n\n### 3. 🟡 Sparse Attention Methods\n\nRather than approximating the full matrix, sparse methods restrict *which* token pairs interact.\n\n#### **Longformer** — Sliding window + global tokens\nLongformer replaces full attention with a **sliding window attention** of width k (each token attends only to its k nearest neighbors), bringing complexity from O(n²) to **O(nk)**. For classification tasks, a small number of **global tokens** (e.g., [CLS]) are allowed to attend to all positions. Since k is fixed and small relative to n, this scales linearly [Longformer: The Long-Document Transformer (page 3); Efficient Transformers: A Survey (page 17)].\n\n#### **BigBird** — Random + window + global sparse attention\nBigBird combines three sparse attention patterns: (1) **g global tokens** (attend to all), (2) **sliding window** attention of width w (local), and (3) **r random keys** per query. The resulting complexity is **O(n)** [Big Bird: Transformers for Longer Sequences (pages 2, 10); Efficient Transformers: A Survey (page 18)]. Crucially, BigBird is theoretically proven to be a **universal approximator** of sequence-to-sequence functions and Turing complete, matching the expressiveness of full attention [Big Bird: Transformers for Longer Sequences (page 4)].\n\n---\n\n### 4. 🟠 Additive Attention Methods\n\n#### **Fastformer** — Global context via additive attention\nInstead of modeling all pairwise token interactions, Fastformer uses **additive attention** to first compress the sequence into a single global context vector, then models each token's interaction with this global context via **element-wise product**. This achieves **O(N·d)** complexity — the simplest among comparable methods — depending only on sequence length and hidden dimension [Fastformer: Additive Attention Can Be All You Need (pages 1, 7)].\n\n---\n\n### 5. ⚠️ Important Caveat: Theoretical vs. Wall-Clock Efficiency\n\nDespite linear theoretical complexity, many of these methods do **not always translate to real-world speedups**:\n- Linear attention models may actually be *slower* than quadratic attention for short sequences [Efficient Transformers: A Survey (page 5, 30)].\n- Kernel-based methods (Performers, Linear Transformer) face significant challenges with **causal masking** during autoregressive training, because they require a sequential left-to-right scan, making parallelized training prohibitively slow [Efficient Transformers: A Survey (page 21)].\n- FlashAttention, while still **O(n²) in compute**, achieves practical speedups by being **IO-aware** — minimizing HBM memory reads/writes via tiling — showing that wall-clock speed depends as much on memory access patterns as on FLOP counts [FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness (pages 1–2)].\n\n---\n\n### Summary Table\n\n| Method | Approach | Complexity |\n|---|---|---|\n| **Linformer** | Low-rank key/value projection | O(n) |\n| **Nyströmformer** | Nyström landmark approximation | O(n) |\n| **Performer (FAVOR+)** | Random feature kernel maps | O(Lrd) ≈ O(n) |\n| **Linear Transformer** | Kernel + matrix associativity | O(Nd²) |\n| **Longformer** | Sliding window + global tokens | O(nk) |\n| **BigBird** | Random + window + global sparse | O(n) |\n| **Fastformer** | Additive attention + global context | O(Nd) |\n\n*[Fastformer: Additive Attention Can Be All You Need (page 7)]*",
+      "tool_calls": []
+    }
+  ],
+  "timing": {
+    "total_seconds": 46.853,
+    "llm_seconds": 44.325,
+    "retrieve_seconds": 2.527,
+    "overhead_seconds": 0.001
+  },
+  "usage": {
+    "input_tokens": 1009,
+    "cache_write_tokens": 34581,
+    "cache_read_tokens": 20550,
+    "output_tokens": 2102,
+    "total_input_processed": 56140,
+    "estimated_cost_usd": 0.1704
+  }
+}

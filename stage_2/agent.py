@@ -19,28 +19,59 @@ MODEL = "claude-sonnet-4-6"
 MAX_ITERATIONS = 6
 MAX_TOKENS_PER_TURN = 4096
 
-SYSTEM_PROMPT = """You are a research assistant grounded in a cropus of 77 ML research papers on efficient LLM inference.
+# SYSTEM_PROMPT = """You are a research assistant grounded in a cropus of 77 ML research papers on efficient LLM inference.
+
+# YOUR JOB
+# - Answer questions about the paper in the corpus.
+# - Use the `retrieve` tool to find supporting evidence before answering
+# - You MAY can retrieve multiple times with different queries to gather evidence from different angles.
+# - Cite paper titles and page numbers for every factual claim.
+# - If the corpus does not cover the question, say so explicityly - do not speculate.
+
+# GROUNDEDNESS RULES
+# - Every factual claim in your answer MUST be supported by a retrieved chunk.
+# - Cite inline as: [Paer Title (page N)]
+# - If retrieved chunks disagree, present both views with their sources.
+# - Do not invent paper titles or claims not present in the chunks.
+
+# WORKFLOW
+# 1. Always begin each turn with one or two sentence of reasoning, stated explicitly. For example: "I need to find papers about X because Y." This reasoning must appear as text BEFORE any tool call.
+# 2. Think briefly about what the question is really asking.
+# 3. Call retrieve with a precise query.
+# 4. Read the results. If they are sufficient, synthesize the answer.
+# 5. If results miss the mark, REFINE your query and retrieve again - try different terminology, more specific terms, or a differnt angle.
+# 6. Final answer in markdown. Concise - quality over verbosity."""
+
+
+SYSTEM_PROMPT = """You are a research assistant grounded in a corpus of 77 ML research papers on efficient LLM inference.
 
 YOUR JOB
-- Answer questions about the paper in the corpus.
+- Answer questions about the papers in the corpus.
 - Use the `retrieve` tool to find supporting evidence before answering
-- You MAY can retrieve multiple times with different queries to gather evidence from different angles.
+- You may retrieve multiple times with different queries to gather evidence from different angles.
 - Cite paper titles and page numbers for every factual claim.
-- If the corpus does not cover the question, say so explicityly - do not speculate.
+- If the corpus does not cover the question, say so explicitly - do not speculate.
 
 GROUNDEDNESS RULES
 - Every factual claim in your answer MUST be supported by a retrieved chunk.
-- Cite inline as: [Paer Title (page N)]
+- Cite inline as: [Paper Title (page N)]
 - If retrieved chunks disagree, present both views with their sources.
 - Do not invent paper titles or claims not present in the chunks.
 
 WORKFLOW
-1. Always begin each turn with one or two sentence of reasoning, stated explicitly. For example: "I need to find papers about X because Y." This reasoning must appear as text BEFORE any tool call.
+1. Before every retrieve call — including the very first — write your reasoning on a line beginning with `Thought:` (one or two sentences stating why you are searching, e.g. "Thought: I need to find papers about X because Y."), then make the tool call.
 2. Think briefly about what the question is really asking.
 3. Call retrieve with a precise query.
 4. Read the results. If they are sufficient, synthesize the answer.
-5. If results miss the mark, REFINE your query and retrieve again - try different terminology, more specific terms, or a differnt angle.
-6. Final answer in markdown. Concise - quality over verbosity."""
+5. If results miss the mark, REFINE your query and retrieve again - try different terminology, more specific terms, or a different angle.
+6. Once the evidence is sufficient, write the final answer following ANSWER FORMAT below.
+
+ANSWER FORMAT
+- Emit a line containing exactly `===ANSWER===` to mark the start of your final answer. Everything after this marker is the answer shown to the user; put no reasoning, narration, or transition after it.
+- Open the answer with a 1-2 sentence direct answer to the question, before any supporting detail. Do not restate the question.
+- Follow with supporting points as short bullets, grouped under a brief header only when the answer has genuinely distinct parts (e.g. mechanisms vs. bottlenecks).
+- Aim for under ~250 words unless the question genuinely requires more. End at the last substantive point; no generic closing summary.
+- Brevity never overrides the GROUNDEDNESS RULES: keep every inline citation and still present disagreeing sources, even when compressing."""
 
 TOOL_RETRIEVE = {
     "name": "retrieve",
@@ -75,11 +106,30 @@ def format_chunks_for_llm(chunks: list[dict]) -> str:
         lines.append("")
     return "\n".join(lines)
 
+ANSWER_SENTINEL = "===ANSWER==="
+
+def strip_thought_prefix(text: str) -> str:
+    """Drop leading 'Thought:' reasoning lines (fallback when the sentinel is absent)."""
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines) and (not lines[i].strip() or lines[i].lstrip().startswith("Thought:")):
+        i += 1
+    return "\n".join(lines[i:]).strip()
+
+def extract_answer(text: str) -> str:
+    """Return the answer the model marked with ANSWER_SENTINEL, discarding any preamble before it.
+    Robust to novel preamble phrasings because it keys on where the answer STARTS, not on the
+    narration form. Falls back to stripping Thought: lines if the model omitted the sentinel.
+    Reasoning is still preserved in the trace (turn['text']); only the answer field is cleaned."""
+    if ANSWER_SENTINEL in text:
+        return text.rsplit(ANSWER_SENTINEL, 1)[1].strip()
+    return strip_thought_prefix(text)
+
 def roll_cache_breakpoint(messages: list[dict]) -> None:
     """keep ONE cache_control breakpoint on the last content block of the conversation."""
     for msg in messages:
         content = msg["content"]
-        if isinstance(content, dict):
+        if isinstance(content, list):
             for block in content:
                 if isinstance(block, dict):
                     block.pop("cache_control", None)
@@ -182,21 +232,21 @@ def answer(question: str, max_iteration: int = MAX_ITERATIONS) -> dict:
         trace.append(turn)
 
         if turn["text"]:
-            print(f"Thought: {turn['text'][:300]}", flush=True)
+            print(turn["text"][:300], flush=True)
         for tc in turn["tool_calls"]:
             print(f"Tool call: retrieve(query={tc['input'].get('query', '')!r}, k={tc['input'].get('k', 10)})", flush=True)
         
         # --- Terminal cases: return early ---
         if response.stop_reason == "end_turn":
-            return finalize(turn["text"], iteration + 1)
-        
+            return finalize(extract_answer(turn["text"]), iteration + 1)
+
         if response.stop_reason == "max_tokens":
             print(f"\n WARNING: output truncated at max_tokens ({MAX_TOKENS_PER_TURN}). Answer is incomplete.", flush=True)
-            return finalize(turn["text"], iteration + 1, truncated=True)
-        
+            return finalize(extract_answer(turn["text"]), iteration + 1, truncated=True)
+
         if response.stop_reason != "tool_use":
             print(f"\n Unexpected stop_reason: {response.stop_reason}", flush=True)
-            return finalize(turn["text"], iteration + 1)
+            return finalize(extract_answer(turn["text"]), iteration + 1)
         
         # --- Stop reason: "tool_use": excute tools, then the loop continue ---
         messages.append({"role": "assistant", "content": response.content})
@@ -236,7 +286,7 @@ def answer(question: str, max_iteration: int = MAX_ITERATIONS) -> dict:
 def save_run(result: dict, runs_dir: Path = RUNS_DIR) -> Path:
     runs_dir.mkdir(parents=True, exist_ok=True)
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    path = runs_dir / f"run_{timestamp}.json"
+    path = runs_dir / f"run_{timestamp}_unstructure.json"
     with open(path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
     return path
@@ -244,7 +294,7 @@ def save_run(result: dict, runs_dir: Path = RUNS_DIR) -> Path:
 if __name__ == "__main__":
     import sys
 
-    default = "How can speculative decoding be made effective at large batch sizes? What are the bottlenecks?"
+    default = "How can attention complexity be reduced to linear time?"
     question = " ".join(sys.argv[1:]) or default
 
     print(f"Question: {question}\n")
@@ -261,7 +311,7 @@ if __name__ == "__main__":
     for turn in result["trace"]:
         print(f"\n--- Iteration {turn['iteration']} (stop_reason: {turn['stop_reason']}) ---")
         if turn["text"]:
-            print(f"Thought: {turn['text'][:400]}")
+            print(turn["text"][:400])
         for tc in turn["tool_calls"]:
             q = tc["input"].get("query", "")
             k = tc["input"].get("k", 10)
@@ -286,6 +336,6 @@ if __name__ == "__main__":
           f"(vs {u['input_tokens']:,} billed at full rate)")
     print(f"Estimated cost: ${u['estimated_cost_usd']}")
 
-    saved = save_run(result)
-    print(f"\nRun saved to {saved}")
+    #saved = save_run(result)
+    #print(f"\nRun saved to {saved}")
 

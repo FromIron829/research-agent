@@ -1,0 +1,632 @@
+{
+  "summary_by_tier": {
+    "simple": {
+      "factual_accuracy": 3.0,
+      "citation_quality": 3.0,
+      "completeness": 3.0,
+      "coherence": 3.0,
+      "total": 12.0,
+      "n": 10
+    },
+    "medium": {
+      "factual_accuracy": 3.0,
+      "citation_quality": 3.0,
+      "completeness": 3.0,
+      "coherence": 3.0,
+      "total": 12.0,
+      "n": 10
+    },
+    "hard": {
+      "factual_accuracy": 3.0,
+      "citation_quality": 3.0,
+      "completeness": 3.0,
+      "coherence": 3.0,
+      "total": 12.0,
+      "n": 10
+    }
+  },
+  "judged": [
+    {
+      "id": "s01",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All technical claims about GPTQ's algorithmic innovations (layer-wise quantization, use of Hessian/second-order info, lazy batch updates, Cholesky reformulation, calibration data, and runtime/accuracy results) are directly supported by the cited source text. There are no unsupported or incorrect statements.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is explicitly supported by a citation to the correct section of the GPTQ paper. The answer references specific pages for each technical detail and result, and the cited chunks contain the relevant information.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: layer-wise one-shot quantization, use of approximate second-order/Hessian information, 3-4 bit quantization without retraining, and the efficiency tricks (arbitrary order, lazy batch updates, Cholesky) that enable few-GPU-hour runs. It also mentions practical memory management and summarizes empirical results, fully addressing the question.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and direct. It begins with a summary, then clearly breaks down the algorithmic innovations, practical considerations, and results. Each section is logically ordered and easy to follow.",
+        "total": 12
+      },
+      "n_citations": 8,
+      "n_unmatched": 0,
+      "n_sources": 6,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "s02",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims made in the answer are directly supported by the provided sources. The explanation of how PagedAttention uses fixed-size blocks (pages), the analogy to OS virtual memory, the elimination of internal and external fragmentation, and the copy-on-write mechanism for sharing are all described in the cited pages. The statistics and mechanisms are accurately represented.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every substantive claim is supported by a citation that resolves to a relevant section of the source. The answer references specific pages for each mechanism and statistic, and the cited content supports the claims made.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: fixed-size non-contiguous blocks, the virtual memory/paging analogy, elimination of fragmentation, and memory sharing via copy-on-write. It also provides context about the problems in prior systems and the improvements enabled by PagedAttention, fully addressing the question at the simple tier.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clear, logically organized sections. It is concise and easy to follow, with no unnecessary padding.",
+        "total": 12
+      },
+      "n_citations": 10,
+      "n_unmatched": 0,
+      "n_sources": 6,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "s03",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about FlashAttention's mechanisms for reducing memory I/O are directly supported by the cited sources. The answer accurately describes tiling/blocking to keep data in SRAM, avoidance of materializing the full N×N attention matrix in HBM, online softmax, recomputation in the backward pass, and that the method is exact (not approximate). Quantitative claims about memory and runtime improvements are also supported by the sources.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every technical claim is explicitly cited to the relevant sections and pages of the FlashAttention paper. The answer consistently points to the correct source for each mechanism and quantitative result, and the cited text supports the claims made.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key mechanisms: IO-aware tiling/blocking, avoidance of full attention matrix materialization, online softmax, recomputation in backward, kernel fusion, and the fact that the method is exact. It also provides quantitative evidence and addresses both forward and backward passes, fully addressing the question at a 'simple' tier.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clear, well-organized sections for each mechanism. It is concise, avoids unnecessary padding, and presents information in a logical order.",
+        "total": 12
+      },
+      "n_citations": 10,
+      "n_unmatched": 0,
+      "n_sources": 5,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "s04",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims are directly supported by the cited sources. The answer correctly states that AWQ identifies salient weights by activation magnitude (not weight magnitude), that these constitute about 0.1%-1% of weights, and that per-channel scaling is used to protect them during quantization, not mixed precision. The explanation of the scaling mechanism and its effect on quantization error is also supported by the sources.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every key claim is explicitly cited and traceable to the provided sources. The answer references the correct pages for each point, and the cited text supports the claims made. There are no unsupported or uncited assertions.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all the key points: how salient weights are identified (by activation magnitude), the fraction of weights involved (~0.1%-1%), the method of protection (per-channel scaling, not mixed precision), and the effect on quantization accuracy. It also briefly mentions the calibration/statistics aspect and the hardware efficiency motivation, addressing the question fully at the simple tier.",
+        "coherence": 3,
+        "coherence_reason": "The answer is well-structured, starting with a direct summary, then breaking down the identification and protection mechanisms in a clear, concise, and logically ordered manner. There is no unnecessary padding, and the structure aids understanding.",
+        "total": 12
+      },
+      "n_citations": 8,
+      "n_unmatched": 0,
+      "n_sources": 4,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "s05",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims are directly supported by the cited SmoothQuant paper. The answer accurately describes the activation outlier problem, the per-channel scaling transformation, the mathematical equivalence, the offline migration factor (alpha), and the resulting enablement of W8A8 quantization. No factual errors or unsupported claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every key claim is explicitly supported by the cited sources, with page numbers provided. The answer references the correct sections of the SmoothQuant paper for each technical detail, including the mathematical mechanism, the role of alpha, and the empirical results. There are no missing or misattributed citations.",
+        "completeness": 3,
+        "completeness_reason": "The answer fully addresses all key points: it explains why activation quantization is hard, how the per-channel scaling migrates difficulty, the mathematical equivalence, the role of alpha, and the practical outcome (W8A8 quantization). No major or minor aspects are omitted.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and direct. It begins with a summary, then logically explains the problem, the mechanism, the role of alpha, and the result. Each section is clearly delineated and flows naturally, making the explanation easy to follow.",
+        "total": 12
+      },
+      "n_citations": 11,
+      "n_unmatched": 0,
+      "n_sources": 3,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "s06",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about Medusa's mechanism—using multiple decoding heads to predict multiple future tokens in parallel, tree-based candidate generation and verification, no need for a separate draft model, and the use of tree attention and typical acceptance—are directly supported by the cited Medusa paper (pages 2-4). There are no factual errors or unsupported claims.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every technical claim is directly supported by the cited Medusa paper, with precise page references. The answer does not cite unrelated or fabricated sources, and all claims resolve to the provided text.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: parallel prediction via extra heads, tree-based candidate generation and verification, no draft model, and the use of tree attention and typical acceptance. It also briefly contrasts Medusa with speculative decoding and mentions training variants, providing a thorough and well-rounded explanation for a simple-tier question.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and leads with a direct answer. It is organized into sections (core mechanism, training variants, advantages), making it easy to follow and free of unnecessary padding.",
+        "total": 12
+      },
+      "n_citations": 9,
+      "n_unmatched": 0,
+      "n_sources": 7,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "s07",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All key claims are directly supported by the cited sources. The answer correctly states that H2O tracks accumulated attention scores, retains a split of heavy hitter and recent tokens, and evicts greedily based on maximizing the remaining score. The importance of heavy hitters and the empirical findings about cache reduction with low quality loss are also supported by the sources.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is explicitly supported by the cited sources, with page numbers and direct references to the relevant sections. The answer does not make unsupported claims and ties each point to the appropriate evidence.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all the key points: the dominance of heavy hitter tokens, the eviction policy's split between heavy hitters and recent tokens, the use of accumulated attention scores, and the empirical/theoretical justification for the approach. It also briefly mentions the submodular maximization framing and the practical implications, fully addressing the question at a 'simple' tier.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and presents the direct answer first, followed by supporting details and evidence. It is easy to follow and free of unnecessary padding.",
+        "total": 12
+      },
+      "n_citations": 7,
+      "n_unmatched": 0,
+      "n_sources": 7,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "s08",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All key claims are directly supported by the cited sources. The ternary weights {-1, 0, 1} and the log2(3) ≈ 1.58 bits are explicitly stated (page 1). The model is trained from scratch, not via PTQ (page 1). The hardware efficiency and removal of multiplications are described (page 2). Matching FP baselines at scale is shown in tables (page 3).",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is supported by a citation, and the cited pages contain the relevant information. The answer references the correct sections and tables for each point, and all claims resolve to the provided source.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all the key points: ternary weights and their bit calculation, training method, hardware implications, accuracy at scale, and architectural notes. No major aspect is omitted for a simple-tier question.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct summary first, followed by clearly organized bullet points and explanations. It is concise and easy to follow, with no unnecessary padding.",
+        "total": 12
+      },
+      "n_citations": 9,
+      "n_unmatched": 0,
+      "n_sources": 4,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "s09",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims made in the answer are directly supported by the cited sources. The explanation that StreamingLLM keeps a small set of initial tokens as attention sinks, combined with a sliding window of recent tokens, is explicitly described in the sources (pages 2, 3, 4, 5, 9). The reason for attention sinks, the effect of evicting initial tokens, the number of tokens needed, and the fact that no fine-tuning is required are all supported. The optional pre-training enhancement is also mentioned in the sources.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is supported by a citation that resolves to a relevant section of the provided sources. The answer references specific pages for each technical point, and the cited content directly supports the claims made.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: the role of initial tokens as attention sinks, the structure of the KV cache, the reason for perplexity collapse when evicting early tokens, the constant memory property, and the optional pre-training enhancement. It also briefly touches on performance and implementation details, fully addressing the question at a 'simple' tier.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and presents the direct answer first, followed by clear, logically organized supporting details. Each section is labeled and flows naturally, making the explanation easy to follow.",
+        "total": 12
+      },
+      "n_citations": 10,
+      "n_unmatched": 0,
+      "n_sources": 6,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "s10",
+      "tier": "simple",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims made in the answer are directly supported by the cited QLoRA paper. The explanation of 4-bit NormalFloat (NF4) as information-theoretically optimal for normal weights, the process of double quantization, the use of paged optimizers, and the frozen 4-bit base with trainable LoRA adapters are all described in the provided source excerpts. The memory reduction figures and empirical results are also supported by the sources.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is explicitly cited to a specific page in the QLoRA paper, and the cited content supports the claims made. There are no unsupported or misattributed statements.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: the role of NF4, double quantization, paged optimizers, and the LoRA adapter mechanism. It also provides quantitative details and empirical results, fully addressing the question at the expected level for a 'simple' tier.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clearly labeled sections for each technical innovation. It is concise, logically organized, and easy to follow.",
+        "total": 12
+      },
+      "n_citations": 11,
+      "n_unmatched": 0,
+      "n_sources": 5,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m01",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about SmoothQuant and AWQ's approaches, scaling directions, quantization targets, and the use of activation statistics are directly supported by the cited sources. The answer accurately describes SmoothQuant's migration of quantization difficulty from activations to weights (W8A8), and AWQ's use of activation-aware scaling to protect salient weight channels (W4A16), as well as the rationale and implementation details for both. There are no factual errors or unsupported claims.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is supported by a specific, relevant citation. The answer references the correct pages and content from both the SmoothQuant and AWQ papers, and even brings in a supporting note from OmniQuant for context. There are no fabricated or missing citations for the key points discussed.",
+        "completeness": 3,
+        "completeness_reason": "The answer fully addresses the question at a medium tier, contrasting the two methods' goals, mechanisms, and scaling strategies. It covers the key points: SmoothQuant's migration of outlier difficulty, AWQ's weight-only focus and use of activation statistics, the difference in quantization targets, and the different use of scaling. The summary table and concise explanations ensure all central aspects are covered.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and direct. It begins with a summary, then clearly separates the discussion of each method, and finishes with a comparative table and a brief synthesis. The flow is logical and easy to follow, with no unnecessary padding.",
+        "total": 12
+      },
+      "n_citations": 9,
+      "n_unmatched": 0,
+      "n_sources": 7,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m02",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about the evolution of parallelism and hardware utilization across FlashAttention-1, 2, and 3 are directly supported by the cited sources. The answer accurately describes the tiling and IO-awareness of FA-1 (pages 2, 5 of the FA-1 paper), the improved work partitioning and sequence-length parallelism of FA-2 (FA-2, page 2), and the asynchrony, warp specialization, and FP8/low-precision/Hopper-specific optimizations of FA-3 (FA-3, pages 1, 2, 9). Utilization numbers and speedup claims are also supported by the sources.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is directly supported by a cited source, with specific page numbers provided. The answer references the correct papers and pages for each technical advance and performance result, and the sources substantiate the claims made.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: FA-1's IO-awareness and tiling, FA-2's improved work partitioning and sequence-length parallelism, and FA-3's asynchrony, warp specialization, and low-precision/Hopper-specific features. It also discusses utilization gains and provides quantitative results. No major aspect is omitted.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured by version, with a direct answer first and clear, concise bullet points for each version. It is easy to follow, avoids unnecessary padding, and presents information in a logical, readable manner.",
+        "total": 12
+      },
+      "n_citations": 8,
+      "n_unmatched": 0,
+      "n_sources": 7,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m03",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about the eviction signals and strategies for H2O, SnapKV, and Scissorhands are directly supported by the cited sources. The answer accurately describes H2O's use of cumulative attention scores (\"heavy hitters\"), SnapKV's use of observation window attention at prompt time, and Scissorhands' persistence-of-importance hypothesis and history window. The distinctions between prompt-time and decode-time selection are also correct and supported.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is supported by a citation that resolves to a relevant source. The answer references specific pages and sections, and the content in the sources matches the claims made. There are no unsupported or fabricated citations.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: the specific eviction signals for each method, the timing of selection (prompt-time vs decode-time), and the theoretical motivations. It also provides a summary table for clarity, addressing the medium-tier requirement for genuine contrast.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clearly separated sections for each method, and a summary table. It is concise, well-organized, and easy to follow.",
+        "total": 12
+      },
+      "n_citations": 7,
+      "n_unmatched": 0,
+      "n_sources": 11,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m04",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about Medusa and EAGLE's draft token production are supported by the cited sources. Medusa's use of parallel, independent heads on the last hidden state is described in Medusa and Hydra. EAGLE's autoregressive feature-level draft model, use of second-to-top-layer features, and handling of feature uncertainty via shifted token input are all supported by EAGLE-2, EAGLE-3, and EAGLE: Speculative Sampling Requires Rethinking Feature Uncertainty. The tree verification mechanism is also correctly described for both.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is directly supported by a cited source. The answer references the correct papers and even points to specific sections/pages. There are no unsupported claims or missing citations for the key technical differences.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: Medusa's independent heads, EAGLE's autoregressive feature-level approach, the handling of feature uncertainty, and the use of tree verification. It also provides a clear contrast table and mentions EAGLE-2's dynamic tree as an extension, which is relevant context.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clearly separated sections for each method, a summary contrast table, and a concise wrap-up. It is easy to follow and focused on the question.",
+        "total": 12
+      },
+      "n_citations": 7,
+      "n_unmatched": 0,
+      "n_sources": 6,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m05",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about MQA and GQA mechanisms, their impact on KV-cache size, and the quality tradeoff are directly supported by the cited sources. The answer accurately describes that MQA uses a single K/V head (GQA-1), GQA interpolates between MHA and MQA, and that GQA recovers most of the quality with much smaller cache. The empirical results and practical adoption are also supported by the sources.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is directly cited to a relevant source, and the citations resolve to the correct papers and sections. The answer references the correct figures, tables, and statements from the provided chunks, and does not make unsupported claims.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: the mechanisms of MQA and GQA, the tradeoff between cache size and model quality, empirical results, practical adoption, and the uptraining requirement. It also provides a summary table and discusses scaling and sharding implications, fully addressing the medium-tier question.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with clear sections for MQA, GQA, and a summary table. It leads with a direct answer, is concise, and logically organized, making it easy to follow and understand.",
+        "total": 12
+      },
+      "n_citations": 11,
+      "n_unmatched": 0,
+      "n_sources": 7,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m06",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about how DistServe and Splitwise disaggregate prefill and decode, their mechanisms (KV cache transfer, resource allocation, scheduling), and their motivations (goodput/SLO for DistServe, hardware efficiency for Splitwise) are directly supported by the cited sources. The answer accurately describes the compute/memory-bound nature of each phase, the use of heterogeneous hardware in Splitwise, and the details of KV cache transfer. No unsupported or contradicted claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every substantive claim is supported by a citation that resolves to a source, and the cited sources directly support the claims. The answer references specific pages and sections for both DistServe and Splitwise, and all mechanisms and motivations are traceable to the provided text. There are no missing or misattributed citations.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: the compute/memory-bound distinction, the specific mechanisms for phase disaggregation in both systems, the rationale for each (goodput/SLO vs. hardware efficiency), the use of heterogeneous hardware in Splitwise, and the details of KV cache transfer. It also contrasts the two approaches and summarizes their differing emphases, fully addressing the medium-tier question.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clearly separated sections for each system, and a concise summary of their differences. It is well-organized, avoids unnecessary padding, and presents information in a logical, readable manner.",
+        "total": 12
+      },
+      "n_citations": 14,
+      "n_unmatched": 0,
+      "n_sources": 12,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m07",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All technical claims about Linformer and Performer are supported by the cited sources. The description of Linformer's low-rank projection (projecting keys/values along the sequence dimension, achieving O(nk) complexity, and the theoretical guarantee with k=O(d/ε²)) is directly supported by Linformer: Self-Attention with Linear Complexity (pages 4-5) and Efficient Transformers: A Survey (page 20). The explanation of Performer's FAVOR+ kernel approximation, use of positive orthogonal random features, unbiased estimation, and complexity is well-supported by Rethinking Attention with Performers (pages 1, 3-6), and Efficient Transformers: A Survey (page 21). The limitations regarding causal masking and theoretical guarantees are also supported. No unsupported or contradicted claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is directly supported by a cited source, and the citations resolve to the correct papers and relevant sections. The answer references specific pages and even points to theorems and figures where appropriate. There are no fabricated or missing citations for the key technical points.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: Linformer's low-rank projection approach, Performer's kernel/random-feature approximation, the assumptions (low-rank for Linformer, none for Performer), theoretical guarantees, complexity, and limitations (especially regarding causal masking). It also provides a clear contrast table summarizing the differences, addressing the question's request for a comparison of their approximations and guarantees.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clearly separated sections for Linformer and Performer, and a summary table. It is concise, logically organized, and easy to follow, with no unnecessary padding or disorganization.",
+        "total": 12
+      },
+      "n_citations": 15,
+      "n_unmatched": 0,
+      "n_sources": 11,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m08",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about QuIP#'s improvements over QuIP are directly supported by the cited sources. The answer accurately describes the switch to the Randomized Hadamard Transform, the introduction of E8 lattice-based vector quantization, and the addition of inter-layer fine-tuning, as well as the resulting improvements in 2-bit quantization quality. No unsupported or incorrect claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is explicitly supported by the cited sources, with clear references to the relevant sections and pages. The answer does not make any claims that are not traceable to the provided text.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key aspects: the new incoherence processing method, the E8 lattice codebook and BlockLDLQ, the fine-tuning procedure, and the empirical improvements in 2-bit quantization. It also contrasts these with the original QuIP's limitations, fully addressing the question at a medium tier.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and begins with a direct summary. Each improvement is clearly delineated and explained, followed by a summary of the net result. The flow is logical and easy to follow.",
+        "total": 12
+      },
+      "n_citations": 6,
+      "n_unmatched": 0,
+      "n_sources": 5,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m09",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about how Ring and Striped Attention handle causal masking, workload imbalance, and the resulting speedups are directly supported by the cited sources. The explanation of contiguous vs. interleaved partitioning, the impact on masking, and the theoretical/practical speedup numbers are all present in the provided text.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every substantive claim is supported by a citation that resolves to a source, and the sources directly support the claims. The answer references specific pages and even quotes or paraphrases the relevant sections, ensuring traceability and accuracy.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: the blockwise sharding and communication pattern of Ring Attention, the load imbalance caused by causal masking, how Striped Attention permutes tokens to balance workloads, and the resulting speedup. It also mentions the theoretical FLOP reduction and practical speedup numbers, fully addressing the medium-tier contrast question.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clearly separated sections for each method, and a concise summary of practical impact. It is well-organized, easy to follow, and free of unnecessary padding.",
+        "total": 12
+      },
+      "n_citations": 9,
+      "n_unmatched": 0,
+      "n_sources": 5,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "m10",
+      "tier": "medium",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about KIVI and KVQuant's approaches, including per-channel/per-token quantization, KIVI's tuning-free 2-bit method, grouping and fp16 residuals, KVQuant's pre-RoPE quantization, non-uniform quantization, outlier handling, and performance comparisons, are directly supported by the cited sources. There are no factual errors or unsupported claims.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every technical claim is supported by a citation that resolves to a source, and the cited sources substantiate the claims. The answer references specific pages and details from both KIVI and KVQuant papers, and all key differences are traceable to the provided text.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: the quantization granularity for keys and values, the asymmetry in their distributions, KIVI's simplicity and tuning-free design, KVQuant's advanced techniques (pre-RoPE, non-uniform quantization, outlier handling, attention sink awareness), and performance/accuracy/context length differences. It also provides a direct comparison and synthesis across both papers.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct comparison, clear sectioning (Shared Foundation, KIVI's Approach, KVQuant's Approach, Performance Comparison), and concise explanations. It leads with a summary, then details, and ends with a synthesis, making it easy to follow and well-organized.",
+        "total": 12
+      },
+      "n_citations": 14,
+      "n_unmatched": 0,
+      "n_sources": 9,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "h01",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All major claims are directly supported by the cited sources. The answer correctly describes the shift from memory-bound to compute-bound regimes at large batch sizes (MagicDec p1, p4, p5), the critical sequence length where KV loading dominates (MagicDec p2, p5), the need to shrink draft tree size with batch size (Hydra p5, p7), and the use of compressed-KV self-speculation and parallelization (MagicDec p8, Speculative Speculative Decoding p12). No unsupported or contradicted claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every key claim is explicitly supported by a cited source, and the citations resolve to relevant passages. The answer references specific pages and figures, and the cited content directly supports the technical points made. There are no missing or misattributed citations.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all the key points listed in the guidance: it explains the compute-bound bottleneck at large batch sizes, the critical sequence length for KV loading, the need to adjust draft tree size, and advanced techniques like compressed-KV self-speculation and parallel draft/verify. It also summarizes bottlenecks and mitigation strategies, providing a comprehensive synthesis across papers.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clearly labeled sections addressing bottlenecks, solutions, and a summary table. It is concise, logically organized, and easy to follow, with no unnecessary padding.",
+        "total": 12
+      },
+      "n_citations": 10,
+      "n_unmatched": 0,
+      "n_sources": 8,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "h02",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All major claims are supported by the cited sources. The families of methods (sparse/windowed, low-rank, kernel/random-feature, Nyström, additive) are all described in the cited papers. The caveats about wall-clock speedup, memory IO, and the fact that FlashAttention can outperform approximate methods in practice are all directly supported by the FlashAttention papers. The causal-masking difficulty for kernel methods is also explicitly mentioned in the Performer and survey sources. No unsupported or contradicted claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every substantive claim is either directly cited or traceable to a cited source. The answer references specific papers and even page numbers for key points. The caveats and technical details are all supported by the provided chunks. There are no fabricated or missing citations for the main points.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all the main families (sparse/windowed, low-rank, kernel/random-feature, Nyström, additive), discusses the wall-clock caveats (memory IO, FLOPs vs. speed, FlashAttention's practical superiority, causal-masking issues), and provides a cross-family synthesis. No major aspect is omitted, and the answer even notes the limitations of some methods for autoregressive tasks.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and leads with a direct answer. It is organized by method family, with caveats clearly attached to each, and concludes with a cross-cutting summary about IO and wall-clock speed. The writing is clear and to the point, with no unnecessary padding.",
+        "total": 12
+      },
+      "n_citations": 16,
+      "n_unmatched": 0,
+      "n_sources": 14,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "h03",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All major claims are supported by the cited sources. The answer correctly distinguishes between eviction (dropping tokens, lossy in token dimension) and quantization (retaining all tokens at lower precision), and discusses the tradeoffs and risks (e.g., eviction can cause functional collapse if critical tokens are dropped, as per H2O p8; quantization preserves coverage but may degrade at high compression ratios, as per GEAR p3). The composability of the two approaches is explicitly stated in KIVI (p9) and KVQuant (p3), and the answer references these. The answer also accurately reports empirical results (e.g., H2O's 20% budget, KIVI's 2% drop at 2-bit, KVQuant's <0.1 perplexity degradation at 3-bit, etc.). No unsupported or contradicted claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every substantive claim is directly supported by a cited source, and the citations resolve to the correct papers and pages. The answer references specific results and statements from the sources (e.g., H2O p8 for memory reduction and risks, KIVI p9 for composability, GEAR p15 for FlashAttention compatibility and quantization vs. eviction, etc.). There are no fabricated or missing citations for key points.",
+        "completeness": 3,
+        "completeness_reason": "The answer fully addresses the question at a hard tier. It contrasts eviction and quantization along the axes of what is lost (tokens vs. precision), risks (context loss vs. approximation error), and tradeoffs (memory, compute, accuracy). It discusses when each is preferable, and provides reasoning about their composition, including explicit statements from the literature and practical recipes. It also notes task-specific considerations and hardware compatibility. No major aspect is omitted.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and direct. It begins with a summary, then clearly separates the discussion of eviction, quantization, and composition, with bullet points and supporting evidence. The flow is logical and easy to follow, with no unnecessary padding or disorganization.",
+        "total": 12
+      },
+      "n_citations": 19,
+      "n_unmatched": 0,
+      "n_sources": 16,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "h04",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All technical claims are supported by the cited sources. The distinctions between memory-bound and compute-bound regimes, the role of arithmetic intensity, and the mapping of efficiency techniques to these regimes are all directly supported by the provided sources (e.g., QuantSpec, Atom, AWQ, FlashAttention, MagicDec, Sarathi-Serve, KVQuant). The answer accurately describes how batch size and sequence length affect the bottleneck, and how this determines which optimizations are effective, with no unsupported or contradicted claims.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is supported by a citation that resolves to a relevant source. The answer references specific pages and figures from the sources, and the cited content directly supports the claims made. There are no fabricated or missing citations for key points.",
+        "completeness": 3,
+        "completeness_reason": "The answer fully addresses the question at a hard tier, providing a cross-paper synthesis that explains the compute-bound vs memory-bound distinction, how arithmetic intensity changes with batch size and sequence length, and why different techniques (quantization, FlashAttention, speculative decoding, batching, etc.) help in different regimes. It covers all the key points listed in the guidance and provides detailed, structured reasoning.",
+        "coherence": 3,
+        "coherence_reason": "The answer is highly structured, starting with a summary principle, then breaking down the regimes, mapping techniques to regimes, and ending with a concise summary. It is direct, clear, and avoids unnecessary padding, making it easy to follow and understand.",
+        "total": 12
+      },
+      "n_citations": 21,
+      "n_unmatched": 0,
+      "n_sources": 17,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "h05",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All technical claims are supported by the cited sources. QuantSpec's hierarchical quantized KV cache and double FP16 buffer are described in the cited pages. The compatibility and conflicts of various KV quantization and sparsification techniques with self-speculation are accurately described, with explicit references to acceptance rates, memory profiles, and the need for careful buffer management. The summary of MagicDec and SnapKV is also supported by the cited material. No unsupported or contradicted claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is directly supported by a cited source. The answer references specific pages for QuantSpec's hierarchical quantization, double buffer, and acceptance rate results, as well as MagicDec's findings on KV compression and SnapKV's compatibility with parallel decoding. The conflicts and caveats are also tied to explicit discussions in the cited texts. There are no missing or misattributed citations.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: QuantSpec's hierarchical quantized KV cache, MagicDec's compressed-KV self-speculation, the need for the draft to be cheaper but aligned, and an honest treatment of what is and isn't directly studied. It also discusses both compatibility and conflicts, including technical caveats and solutions. The summary table further clarifies the landscape. No major aspect is omitted.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and direct. It begins with a summary, then details compatible techniques, conflicts, and concludes with a summary table. Each section is clearly delineated and logically ordered, making the answer easy to follow and understand.",
+        "total": 12
+      },
+      "n_citations": 13,
+      "n_unmatched": 0,
+      "n_sources": 11,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "h06",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All major claims are supported by the cited sources. The answer accurately describes the mechanisms and trade-offs of attention kernels (FlashAttention, Ring/Striped Attention), KV-cache management (quantization, eviction, paging, streaming), and sparse attention (Longformer, BigBird, Fastformer), and their interactions/conflicts. The conflicts (e.g., token eviction vs. FlashAttention's need for contiguous blocks) and synergies (e.g., quantization + eviction + encoding) are explicitly supported by the cited papers (e.g., GEAR, Ada-KV, CacheGen). The answer correctly notes that no single approach solves all long-context challenges, which is a synthesis of the cited works' limitations.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every substantive claim is supported by a citation that resolves to a relevant source. The answer references specific papers for each technique and for the points of conflict/overlap, and the cited sources substantiate the claims (e.g., GEAR for FlashAttention vs. token dropping, Ada-KV for the distinction between sparse attention and cache eviction, CacheGen for composability). There are no unsupported or misattributed claims.",
+        "completeness": 3,
+        "completeness_reason": "The answer fully addresses the hard-tier question: it synthesizes across attention kernels, KV-cache management, and sparse attention, contrasts exact/distributed (Ring) vs. sparse-approximate (BigBird) vs. cache-eviction (SnapKV, StreamingLLM), discusses trade-offs (compute/comm vs. accuracy vs. dropped tokens), explains composability and conflicts, and concludes that no single approach suffices. It covers all key points from the guidance and adds relevant details from the literature.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and direct. It begins with a summary, then organizes the discussion into clear sections (attention kernels, KV-cache management, sparse attention, conflicts/overlaps), and ends with a synthesis. Each section is focused and flows logically, making the complex landscape easy to follow.",
+        "total": 12
+      },
+      "n_citations": 29,
+      "n_unmatched": 1,
+      "n_sources": 40,
+      "sources_capped": false,
+      "unmatched": [
+        "BigBird"
+      ]
+    },
+    {
+      "id": "h07",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims are supported by the cited sources. Atom is shown to jointly quantize weights, activations, and KV cache (Atom: pages 2, 3, 4, 6). KVQuant has a section on joint quantization and reports results (KVQuant: page 9). KIVI explicitly states compatibility with weight-only quantization (KIVI: page 6, 8). The technical distinctions between weight and KV quantization are accurately described and supported (KIVI: page 3, 2; Atom: page 4; KVQuant: page 2). No unsupported or fabricated claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every substantive claim is directly supported by a cited source. The answer references specific pages and sections, and the cited content matches the claims made (e.g., Atom's joint quantization, KVQuant's joint results, KIVI's orthogonality statement). No fabricated or missing citations.",
+        "completeness": 3,
+        "completeness_reason": "The answer fully addresses the question: it identifies that the corpus contains joint methods (Atom, KVQuant), explains the technical implications of combining weight and KV quantization, and discusses the orthogonality and error accumulation. It also correctly notes that KIVI and KVQuant see joint quantization as compatible/orthogonal, not a gap. No major or minor omissions.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured, concise, and direct. It begins with a clear answer, then organizes evidence by paper, and finally synthesizes the technical implications. The structure is logical and easy to follow, with no unnecessary padding.",
+        "total": 12
+      },
+      "n_citations": 13,
+      "n_unmatched": 0,
+      "n_sources": 10,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "h08",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about the systems' mechanisms (paged KV cache in vLLM/DeepSpeed-FastGen, chunked prefill in Sarathi-Serve/DeepSpeed-FastGen, phase disaggregation in DistServe, and their tradeoffs/conflicts) are directly supported by the cited sources. The answer accurately describes the mechanisms, their effects, and the conflicts, with explicit references to the relevant papers and even page numbers. No unsupported or contradicted claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is supported by a citation that resolves to a source, and the cited sources substantiate the claims. The answer references specific pages and sections, and the content matches the cited material. There are no fabricated or missing citations for the key points discussed.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all the key levers for each system (paged KV memory, chunked prefill, Dynamic SplitFuse, phase disaggregation, batch size tuning), discusses their impact on throughput-latency tradeoff, and details the conflicts between them. It also addresses the nuances of each approach and their limitations, as well as cross-system comparisons and tradeoffs, meeting the requirements for a hard-tier synthesis question.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clearly labeled sections for each lever and a dedicated section for conflicts. It is concise, logically organized, and easy to follow, with no unnecessary padding or disorganization.",
+        "total": 12
+      },
+      "n_citations": 13,
+      "n_unmatched": 0,
+      "n_sources": 16,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "h09",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All claims about the evolution from EAGLE to EAGLE-2 to EAGLE-3 are supported by the cited sources. The answer correctly describes EAGLE's feature-level autoregression and handling of feature uncertainty (EAGLE, pages 1, 2, 3, 4), EAGLE-2's introduction of dynamic/context-aware draft trees (EAGLE-2, pages 1, 2, 4, 5), and EAGLE-3's removal of the feature-prediction constraint, introduction of training-time test, and scaling law (EAGLE-3, pages 2, 3, 4, 5, 7, 9). No unsupported or contradicted claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every major claim is directly supported by a cited source, and the citations resolve to the correct papers and relevant sections. The answer references specific pages and figures, and all technical details are traceable to the provided chunks.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key points: the technical innovations and problems addressed by each version, the evolutionary relationship, and the impact on speedup and scaling. It also notes the retention of prior improvements (e.g., EAGLE-3 keeps EAGLE-2's dynamic tree). No major or minor omissions are present.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct-answer-first summary, then clearly separated sections for each version, each with 'problem addressed' and 'what it changed.' It is concise, logically ordered, and easy to follow.",
+        "total": 12
+      },
+      "n_citations": 16,
+      "n_unmatched": 0,
+      "n_sources": 14,
+      "sources_capped": false,
+      "unmatched": []
+    },
+    {
+      "id": "h10",
+      "tier": "hard",
+      "scores": {
+        "factual_accuracy": 3,
+        "factual_accuracy_reason": "All major claims about the approaches (speculative decoding, blockwise/parallel heads, Jacobi-style methods, retrieval-based drafting, and SSD) and their fundamental limits are directly supported by the cited sources. The answer accurately describes the mechanisms, speedups, and bottlenecks, and correctly notes the limits imposed by acceptance rate, draft cost, compute saturation, and the need for target-model verification. No unsupported or contradicted claims are present.",
+        "citation_quality": 3,
+        "citation_quality_reason": "Every substantive claim is supported by a citation that resolves to a relevant source. The answer references specific pages and sections for each method and limitation, and the cited sources substantiate the claims made. There is no evidence of fabricated or missing citations for key points.",
+        "completeness": 3,
+        "completeness_reason": "The answer covers all key approaches in the corpus (speculative decoding, blockwise/parallel heads, Jacobi/Jacobi-style, retrieval-based, SSD), discusses their mechanisms, and synthesizes their fundamental limits, including acceptance rate, draft cost, compute-bound regimes, and the necessity of target-model verification. It also references variants and recent improvements, providing a comprehensive synthesis at the hard tier.",
+        "coherence": 3,
+        "coherence_reason": "The answer is structured with a direct answer first, followed by clearly labeled sections for each approach and a final section on fundamental limits. It is concise, well-organized, and easy to follow, with no unnecessary padding or disorganization.",
+        "total": 12
+      },
+      "n_citations": 27,
+      "n_unmatched": 0,
+      "n_sources": 30,
+      "sources_capped": false,
+      "unmatched": []
+    }
+  ]
+}
