@@ -1,0 +1,9 @@
+.git
+.venv
+**/__pycache__/
+*.pyc
+.env
+.env.*
+paper_pdfs/
+test.py
+*.egg-info
