@@ -80,3 +80,29 @@ Also keep `MAX_ITERATIONS` and per-turn `max_tokens` bounded (already are) to ca
 - App Runner min=1 (always-on, ~$15-25/mo, no cold start) vs. Lambda scale-to-zero (cheap, slow cold start)? For a low-traffic demo that must feel responsive when clicked, min=1 wins.
 - Public vs. gated demo (the cost guard decides this).
 - Stage 3 will need this to become **writable + stateful** (hosted vector store + checkpoint DB) — keep the API layer and Dockerfile structured so that swap is localized.
+
+---
+
+# What actually shipped (2026-06-02)
+
+The plan above targeted **App Runner**, but mid-deploy AWS announced App Runner stopped accepting new customers (as of 2026-04-30). Pivoted to **Amazon ECS Express Mode** — the Fargate-based successor that auto-provisions the same stack (ALB + ACM cert + autoscaling + public URL). **The Docker image didn't change at all** — only the compute target did, which is the whole point of containerizing: the runtime is swappable. Live stack: FastAPI (`api.py`) → Docker (`linux/amd64`) → ECR → ECS Express, single task, budget alarm + slowapi per-IP rate limit, served web UI at `/`.
+
+## Gotchas actually encountered (the real debugging log)
+
+Ordered roughly as hit. The ⭐ ones are genuine engineering lessons worth retelling.
+
+| # | Symptom | Cause | Fix / lesson |
+|---|---------|-------|--------------|
+| 1 | `failed to connect to the docker API … socket` | Docker daemon not running | Start Docker Desktop; `docker info` to confirm |
+| 2 | `docker-credential-desktop: executable file not found` on pulling `python:3.13-slim` | `~/.docker/config.json` had `credsStore: desktop` but the helper wasn't on PATH (conda env shadowing) | **Public images need no credentials** — removed `credsStore`. Lesson: cred helpers are only for *authenticated* registries |
+| 3 ⭐ | Push went to repo `research-agent**atest**` | zsh read `$ECR_URI:latest` as the param `:l` (lowercase) modifier + literal `atest` | **Brace variables before a colon in zsh**: `${ECR_URI}:latest` |
+| 4 ⭐ | App Runner wouldn't accept a new service | Service deprecated to new customers | Pivoted to **ECS Express Mode**. Lesson: containerized → compute target is swappable, nothing wasted |
+| 5 | `exec format error` risk on Fargate | Mac builds **arm64**; Fargate runs **amd64** | `docker buildx build --platform linux/amd64`. Lesson: build for the *target* arch, not your laptop |
+| 6 | First ECS Express "Create" only made IAM roles, then nothing | Known first-time quirk: freshly-created service-linked role not yet propagated | Just **retry** the create — the roles now exist |
+| 7 ⭐ | Provisioning stuck on `AccessDenied: ec2:DescribeAccountAttributes` (load balancer, cert, listener…) | The new infrastructure role hadn't propagated through IAM yet | **Self-healed** as the retry loop waited out propagation. Lesson: `AccessDenied` right after creating a role is often propagation, not a missing policy — wait ~5 min before attaching policies |
+| 8 ⭐ | Per-IP rate limit never triggered (6× `200`) | Behind the ALB, `request.client.host` is the **load balancer's rotating internal IPs** (172.31.x.x), so keys never collide | Key on **`X-Forwarded-For`** (the real client). Lesson: behind a load balancer, the client IP is in XFF |
+| 9 ⭐ | Rate limit still leaky | slowapi's in-memory counter is **per task**; multiple tasks dilute it | Set **min=max=1** so one process is authoritative (or use a shared store like Redis at scale). Budget alarm is the real global ceiling |
+| 10 ⭐⭐ | `--force-new-deployment` "redeployed" but ran the **old** image | ECS task definitions **pin the image by digest**; re-pushing the moving `:latest` tag doesn't update a running service | Re-select the image in *Update service* (re-resolves the tag) → new task-def revision. Lesson: **use immutable tags** (`v2`, git-sha), never `:latest`, for deploys |
+| 11 | ECS Express config showed `max=2` while the autoscaling target was `1/1` | ECS Express keeps its own copy of scaling config separate from the Application Auto Scaling target | Set min/max in the *Update service* form so both agree |
+
+**Meta-lesson:** every one of these was a *silent or misleading* failure — a build that succeeded but ran old code, a 200 that should've been a 429, an AccessDenied that wasn't a real permission problem. The throughline of the whole project holds here too: **don't trust green output; verify the thing you actually care about.**
