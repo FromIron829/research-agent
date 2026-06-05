@@ -23,3 +23,6 @@ paper_pdfs/
 
 # Testing file
 test.py
+
+# Request cache dir
+stage_3/.arxiv_cache/

@@ -22,8 +22,8 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "stage_1"))
-from hybrid import retrieve_hybrid
-from retrieve import _collection, _openai_client, EMBED_MODEL
+from hybrid import retrieve_hybrid, add_chunks
+from retrieve import _collection, _openai_client, EMBED_MODEL, embed_query
 from extract import strip_references
 
 load_dotenv()
@@ -46,6 +46,14 @@ _SUBS = str.maketrans("₀₁₂₃₄₅₆₇₈₉", "0123456789")
 def _norm(s: str) -> str:
     s = s.translate(_SUBS).replace("$", "").replace("_", "").replace("…", "").replace("...", "")
     return re.sub(r"\s+", " ", s.lower()).strip()
+
+def _title_matches(proposed: str, page_text: str, threshold: float = 0.6):
+    head = _norm(page_text[:800])
+    words = [w for w in _norm(proposed).split() if len(w) > 3]
+    if not words:
+        return True
+    hits = sum(1 for w in words if w in head)
+    return hits / len(words) >= threshold
 
 def verify_citations(answer: str, chunks: list[dict]) -> list[str]:
     """Deterministic: return cited papers that were NOT in the retrieved chunks (likely fabricated)."""
@@ -101,36 +109,34 @@ class GraphState(TypedDict):
     candidate: dict
     approved: bool
     ingested: bool
+    ingested_aid: str
 
 # ---------- Paper injection ----------
-def search_arxiv(query: str, max_results: int = 1, retries: int = 4):
+def search_arxiv(query: str, max_results: int = 1, retries: int = 2):
+    # cache: never re-hit arXiv for a query we've already searched
     key = hashlib.md5(f"{query}|{max_results}".encode()).hexdigest()
     cache_file = _ARXIV_CACHE / f"{key}.json"
     if cache_file.exists():
         print(f"[arxiv] cache hit: {query!r}")
         return json.loads(cache_file.read_text())
 
-    last_err = None
     for attempt in range(retries):
         _throttle()
-        try:                                              # FIX: wrap the request itself
+        try:
             resp = requests.get(ARXIV_API, params={
-                "search_query": f"all:{query}",           # terms, not exact-phrase
-                "start": 0, "max_results": max_results, "sortBy": "relevance",
-            }, headers=ARXIV_HEADERS, timeout=30)
+                "search_query": f"all:{query}",
+                "start": 0,
+                "max_results": max_results,
+                "sortBy": "relevance",
+            }, headers=ARXIV_HEADERS, timeout=(5, 20))     # short read timeout for the request path
         except requests.exceptions.RequestException as err:
-            last_err = err
-            wait = min(120, 10 * (attempt + 1)) + random.uniform(0, 2)
-            print(f"[arxiv] request failed ({type(err).__name__}); retry in {wait:.0f}s")
-            time.sleep(wait)
+            print(f"[arxiv] request failed ({type(err).__name__}); brief retry")
+            time.sleep(2)
             continue
 
         if resp.status_code == 429:
-            wait = _parse_retry_after(resp.headers.get("Retry-After"), min(300, 30 * (2 ** attempt)))
-            wait += random.uniform(1, 5)                  # jitter
-            print(f"[arxiv] 429; waiting {wait:.0f}s")
-            time.sleep(wait)
-            continue
+            print("[arxiv] 429 — degrading gracefully (no long wait in request path)")
+            return []                                       # don't block the request; degrade to "not in corpus"
 
         resp.raise_for_status()
         ns = {"a": "http://www.w3.org/2005/Atom"}
@@ -146,50 +152,64 @@ def search_arxiv(query: str, max_results: int = 1, retries: int = 4):
         cache_file.write_text(json.dumps(out))
         return out
 
-    raise RuntimeError(f"arXiv unreachable after {retries} tries: {last_err}")
+    return []      # fail soft after retries — never raise/hang the request
 
 def propose_ingestion_node(state: GraphState):
-    # 1. LLM -> focused osearch query
-    q = client.messages.create(model=MODEL, max_tokens=40, messages=[{"role": "user", "content":
-                "Output ONLY a concise arXiv search query (key technical terms or likely paper title) to find "
-                f"the foundational/original paper for this question:\n{state['question']}"}])
-    search_query = "".join(b.text for b in q.content if b.type == "text").strip()
-    print(f"[propose] arXiv query: {search_query!r}")
-    try:
-        results = search_arxiv(search_query, max_results=5)
-    except Exception as err:
-        print(f"[propose] arXiv lookup failed: {err}")
-        return {"answer": "Not covered by the corpus, and the arXiv lookup is temporarily unavailable."}
-    if not results:
-        return {"answer": "Not covered by the corpus, and no matching arXiv paper was found."}
-    
-    # 2. LLM re-ranks: pick the candidate that actually matches the question
-    listing = "\n".join(f"{i}: {r['title']}" for i, r in enumerate(results))
-    pick = client.messages.create(model=MODEL, max_tokens=10, messages=[{"role": "user", "content":
-                    f"Question: {state['question']}\n\nCandidate papers:\n{listing}\n\n"
-                    "Which index best answers the question? Output ONLY the integer, or -1 if none fit."}])
-    raw = "".join(b.text for b in pick.content if b.type == "text").strip()
-    m = re.search(r"-?\d+", raw)
-    idx = int(m.group()) if m else 0
-    if idx < 0 or idx >= len(results):
-        return {"answer": "Not covered by the corpus, and no arXiv candidate clearly matched."}
-    
-    cand = results[idx]
-    print(f"[propose] picked {idx}: {cand['title']} ({cand['arxiv_id']})")
-    return {
-        "candidate": cand,
-        "answer": f"Not in corpus. Candidate: **{cand['title']}** ({cand['arxiv_id']})."
-    }
-    # --- TEMP STUB: bypass throttled arXiv search to test ingest. Restore the block below afterward. ---
-    # cand = {"title": "Adam: A Method for Stochastic Optimization",
-    #         "arxiv_id": "1412.6980", "pdf_url": "https://arxiv.org/pdf/1412.6980"}
-    # print(f"[propose] (stubbed) candidate: {cand['title']} ({cand['arxiv_id']})")
-    # return {"candidate": cand, "answer": f"Not in corpus. Candidate: {cand['title']}."}
+    # PRIMARY: the LLM names the foundational paper. For the well-known papers the corpus is missing
+    # (Transformer, Adam, BERT...), the LLM knows the exact arXiv ID more reliably than keyword search
+    # surfaces it. A wrong/hallucinated ID is caught downstream by the title check in ingest_node.
+    cand = llm_propose_paper(state["question"])
+    if cand:
+        print(f"[propose] LLM proposed: {cand['title']} ({cand['arxiv_id']})")
+
+    # SECONDARY: only if the LLM won't commit (obscure paper) -> arXiv search + STRICT re-rank.
+    if cand is None:
+        q = client.messages.create(model=MODEL, max_tokens=40, messages=[{"role": "user", "content":
+                "Output ONLY a concise arXiv search query (key terms or likely title) for the foundational "
+                f"paper answering this. Plain text only — no markdown or quotes.\n{state['question']}"}])
+        search_query = re.sub(r'[*`"]', "", "".join(b.text for b in q.content if b.type == "text")).strip()
+        print(f"[propose] arXiv query: {search_query!r}")
+        try:
+            results = search_arxiv(search_query, max_results=5)
+        except Exception as err:
+            print(f"[propose] arXiv lookup failed: {err}")
+            results = []
+        if results:
+            listing = "\n".join(f"{i}: {r['title']}" for i, r in enumerate(results))
+            pick = client.messages.create(model=MODEL, max_tokens=10, messages=[{"role": "user", "content":
+                    f"Question: {state['question']}\n\nCandidates:\n{listing}\n\n"
+                    "Output the index of the candidate that IS the specific paper the question is about. "
+                    "A merely related or similar paper is NOT a match — output -1 if none is that exact paper. "
+                    "Output ONLY the integer."}])
+            raw = "".join(b.text for b in pick.content if b.type == "text").strip()
+            m = re.search(r"-?\d+", raw)
+            idx = int(m.group()) if m else -1
+            if 0 <= idx < len(results):
+                cand = results[idx]
+                print(f"[propose] search picked {idx}: {cand['title']} ({cand['arxiv_id']})")
+
+    if cand is None:
+        return {"answer": "Not covered by the corpus, and I couldn't confidently identify an arXiv paper to add."}
+
+    return {"candidate": cand,
+            "answer": f"Not in corpus. Proposed: **{cand['title']}** ({cand['arxiv_id']})."}
 
 # ---------- RAG retrieve ----------
+def _retrieve_from_paper(query: str, aid: str, k: int = 6):
+    res = _collection.query(query_embeddings=[embed_query(query)], n_results=k, where={"arxiv_id": aid})
+    return [{
+        "chunk_id": cid, "arxiv_id": m["arxiv_id"], "paper_title": m["paper_title"],
+        "page": m["page"], "text": doc, "score": 1.0 - dist,
+    } for cid, doc, m, dist in zip(res["ids"][0], res["documents"][0], res["metadatas"][0], res["distances"][0])]
+
 def retrieve_node(state: GraphState):
     query = state.get("query") or state["question"]
     chunks = retrieve_hybrid(query, k=10)
+    aid = state.get("ingested_aid")
+    if aid and not any(c["arxiv_id"] == aid for c in chunks):
+        boost = _retrieve_from_paper(query, aid, k=6)
+        chunks = boost + chunks
+        print(f"[retrieve] boosted with {len(boost)} chunks from freshly-ingested {aid}")
     print(f"[retrieve] query={query!r} -> {len(chunks)} chunks")
     return {"chunks": chunks, "query": query}
 
@@ -217,6 +237,28 @@ GROUND_TOOL = {
             "issues": {"type": "string", "description": "Unsupported claims, or 'none'."},
         },
         "required": ["grounded", "issues"],
+    },
+}
+
+PROPOSE_TOOL = {
+    "name": "propose_paper",
+    "description": "Name the single arXiv paper that best answers the question - only if confident of its real arXiv ID.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "known": {
+                "type": "boolean",
+                "description": "True ONLY if you are confident this is a real paper with this exact arXiv ID."
+            },
+            "title": {
+                "type": "string",
+            },
+            "arxiv_id": {
+                "type": "string",
+                "description": "e.g. 1706.03762 - the real identifier, empty if unsure." 
+            },
+        },
+        "required": ["known", "title", "arxiv_id"],
     },
 }
 
@@ -337,6 +379,12 @@ def ingest_node(state: GraphState):
     tmp = Path(f"/tmp/{aid}.pdf"); tmp.write_bytes(pdf)
 
     raw = pymupdf4llm.to_markdown(str(tmp), page_chunks=True, show_progress=False)
+    first_page = raw[0]["text"] if raw else ""
+    if not _title_matches(cand["title"], first_page):
+        print(f"[ingest] title mismatch - '{aid}' is not '{cand['title']}'; aborting to protect the corpus")
+        return {"ingested": True,
+                "answer": f"Couldn't verify arXiv:{aid} matches '{cand['title']}' - not adding it to avoid corrupting the corpus."}
+    
     pages = strip_references([{"page": i + 1, "text": p["text"]} for i, p in enumerate(raw)])
     docs = [Document(page_content=pg["text"],
                                      metadata={"arxiv_id": aid, "paper_title": cand["title"], "page": pg["page"]})
@@ -354,8 +402,17 @@ def ingest_node(state: GraphState):
         documents=texts,
         metadatas=[{"arxiv_id": aid, "paper_title": cand["title"], "page": d.metadata["page"]} for d in splits],
     )
+    new_chunks = [{
+        "chunk_id": f"{aid}_{i:04d}",
+        "arxiv_id": aid,
+        "paper_title": cand["title"],
+        "page": d.metadata["page"],
+        "text": d.page_content,
+    } for i, d in enumerate(splits)]
+    add_chunks(new_chunks)
+
     print(f"[ingest] upserted into '{_collection.name}' -> now includes {cand['title']}")
-    return {"ingested": True, "attempts": 0, "query": state["question"]}
+    return {"ingested": True, "ingested_aid": aid, "attempts": 0, "query": state["question"]}
 
 # ---------- Routers ----------
 def route_after_grade(state: GraphState):
@@ -382,6 +439,23 @@ def route_after_propose(state: GraphState):
 
 def route_after_approval(state: GraphState):
     return "ingest" if state["approved"] else "deny"
+
+def llm_propose_paper(question: str):
+    """Fallback when arXiv search is unavailable: let the LLM name the paper from parametric knowledge."""
+    msg = client.messages.create(
+        model=MODEL, max_tokens=200,
+        tools=[PROPOSE_TOOL], tool_choice={"type": "tool", "name": "propose_paper"},
+        messages=[{"role": "user", "content":
+                   f"The local corpus cannot answer this question:\n{question}\n\n"
+                   "Name the single foundational arXiv paper that does - but ONLY if you are confident of its real "
+                   "arXiv ID. If you are not sure of the exact ID, set known=false. Do NOT guess an ID."}],
+    )
+    p = next((b.input for b in msg.content if b.type == "tool_use"), {})
+    aid = (p.get("arxiv_id") or "").strip()
+    if not p.get("known") or not aid:
+        return None
+    return {"title": (p.get("title") or "").strip(), "arxiv_id": aid,
+            "pdf_url": f"https://arxiv.org/pdf/{aid}"}
 
 builder = StateGraph(GraphState)
 builder.add_node("retrieve", retrieve_node)
@@ -422,7 +496,7 @@ graph = builder.compile(checkpointer=MemorySaver())
 if __name__ == "__main__":
     config = {"configurable": {"thread_id": "demo-1"}}
     #result = graph.invoke({"question": "How does FlashAttention reduce memory I/O?"})
-    result = graph.invoke({"question": "What is the paper 'Attention is all you need' talking about?"}, config=config)
+    result = graph.invoke({"question": "What is the paper Attention is all you need talking about?"}, config=config)
 
     while "__interrupt__" in result:
         intr = result["__interrupt__"][0]

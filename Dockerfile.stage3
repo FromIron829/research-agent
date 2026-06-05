@@ -1,0 +1,14 @@
+FROM python:3.13-slim
+WORKDIR /app
+
+RUN pip install --no-cache-dir uv
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+ENV PATH="/app/.venv/bin:$PATH"
+
+# stage_1 = hybrid/retrieve/extract + chunks.json + chroma_db ; stage_3 = graph.py + api.py
+COPY stage_1/ stage_1/
+COPY stage_3/ stage_3/
+
+EXPOSE 8080
+CMD ["uvicorn", "api:app", "--app-dir", "stage_3", "--host", "0.0.0.0", "--port", "8080"]

@@ -20,6 +20,20 @@ with open(CHUNKS_PATH, encoding="utf-8") as f:
 _corpus_tokens = [tokenize(c["text"]) for c in _chunks]
 _bm25 = BM25Okapi(_corpus_tokens)
 
+def add_chunks(new_chunks: list[dict], persist: bool=True):
+    global _bm25
+    existing = {c["chunk_id"] for c in _chunks}
+    fresh = [c for c in new_chunks if c["chunk_id"] not in existing]
+    if not fresh:
+        return
+    _chunks.extend(fresh)
+    _corpus_tokens.extend(tokenize(c["text"]) for c in fresh)
+    _bm25 = BM25Okapi(_corpus_tokens)
+    if persist:
+        with open(CHUNKS_PATH, "w", encoding="utf-8") as f:
+            json.dump(_chunks, f, ensure_ascii=False)
+    print(f"[bm25] rebuilt: {len(_chunks)} chunks (+{len(fresh)})")
+    
 def bm25_retrieve(query: str, k: int = 10):
     query_tokens = tokenize(query)
     scores = _bm25.get_scores(query_tokens)
