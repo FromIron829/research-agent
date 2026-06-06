@@ -2,7 +2,7 @@ import re
 import sys
 import time
 import json
-import random
+import operator
 import email.utils
 from datetime import datetime, timezone
 import hashlib
@@ -10,6 +10,8 @@ import requests
 from pathlib import Path
 from typing import TypedDict
 import xml.etree.ElementTree as ET
+from typing import TypedDict, Annotated
+from memory import format_history
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -110,6 +112,8 @@ class GraphState(TypedDict):
     approved: bool
     ingested: bool
     ingested_aid: str
+    history: Annotated[list[dict], operator.add]
+    intent: str
 
 # ---------- Paper injection ----------
 def search_arxiv(query: str, max_results: int = 1, retries: int = 2):
@@ -262,6 +266,45 @@ PROPOSE_TOOL = {
     },
 }
 
+ROUTE_TOOL = {
+    "name": "route",
+    "description": "Classify the user's new message to dispatch it correctly.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "intent": {"type": "string", "enum": ["corpus", "followup"],
+                       "description": "corpus = a question answerable from the research-paper knowledge base. "
+                       "followup = operates on the conversation so far (summarize / rephrase / "
+                       "explain the previous answer); no new retrieval needed."},
+        },
+        "required": ["intend"],
+    },
+}
+
+def route_intent_node(state: GraphState):
+    hist = format_history(state.get("history", []))
+    msg = client.messages.create(
+        model=MODEL, max_tokens=100,
+        tools=[ROUTE_TOOL], tool_choice={"type": "tool", "name": "route"},
+        messages=[{"role": "user", "content": f"{hist}\nUser's new message: {state['question']}\n\nClassify the intent."}],
+    )
+    intent = next((b.input for b in msg.content if b.type == "tool_use"), {}).get("intent", "corpus")
+    print(f"[route] intent={intent}")
+    return {"intent": intent}
+
+def answer_from_history_node(state: GraphState):
+    hist = format_history(state.get("history", []))
+    msg = client.messages.create(
+        model=MODEL, max_tokens=512,
+        messages=[{"role": "user", "content":
+                   f"{hist}\nUser's new message {state['question']}\n\n"
+                   "Respond using ONLY the conversation above - do not retrieve or use outside knowledge."}],
+    )
+    answer = "".join(b.text for b in msg.content if b.type == "text")
+    return {"answer": answer,
+            "history": [{"role": "user", "content": state["question"]},
+                        {"role": "assistant", "content": answer}]}
+
 def grade_relevance_node(state: GraphState):
     context = "\n\n".join(f"[{c['paper_title']} p{c['page']}] {c['text']}" for c in state["chunks"])
     msg = client.messages.create(
@@ -334,11 +377,12 @@ def generate_node(state: GraphState):
                         "actually present in the sources above, or (b) remove just that one claim. "
                         "Do NOT alter any other claim. Do NOT invent citations or page numbers.")
 
+    hist = format_history(state.get("history", [])) 
     msg = client.messages.create(
         model=MODEL,
         max_tokens=1024,
         system="Answer the question using ONLY the provided sources. Cite as [Paper Title (page N)].",
-        messages=[{"role": "user", "content": f"Question: {state['question']}\n\nSources:\n{context}{fix}"}],
+        messages=[{"role": "user", "content": f"{hist}\nQuestion: {state['question']}\n\nSources:\n{context}{fix}"}],
     )
     answer = "".join(b.text for b in msg.content if b.type == "text")
     out = {"answer": answer}
@@ -347,10 +391,12 @@ def generate_node(state: GraphState):
     return out
 
 def respond_node(state: GraphState):
-    if state.get("grounded"):
-        return {"answer": state["answer"]}
-    print(f"[respond] ungrounded after cap -> returning the original (un-rewritten) draft")
-    return {"answer": state.get("first_answer", state["answer"])}
+    answer = state["answer"] if state.get("grounded") else state.get("first_answer", state["answer"])
+    if not state.get("grounded"):
+        print("[respond] ungrounded after cap -> returning the original (un-rewritten) draft")
+    return {"answer": answer,
+            "history": [{"role": "user", "content": state["question"]},
+                        {"role": "assistant", "content": answer}]}
 
 # ---------- Human approval ----------
 def approval_node(state: GraphState):
@@ -467,8 +513,15 @@ builder.add_node("grade_groundedness", grade_groundedness_node)
 builder.add_node("propose_ingestion", propose_ingestion_node)
 builder.add_node("approval", approval_node)
 builder.add_node("ingest", ingest_node)
+builder.add_node("route_intent", route_intent_node)
+builder.add_node("answer_from_history", answer_from_history_node)
 
-builder.add_edge(START, "retrieve")
+builder.add_edge(START, "route_intent")
+builder.add_conditional_edges("route_intent", lambda s: s["intent"], {
+    "corpus": "retrieve",
+    "followup": "answer_from_history",
+})
+builder.add_edge("answer_from_history", END)
 builder.add_edge("retrieve", "grade_relevance")
 builder.add_conditional_edges("grade_relevance", route_after_grade, {
     "generate": "generate",
@@ -493,15 +546,22 @@ builder.add_edge("respond", END)
 builder.add_edge("ingest", "retrieve")
 graph = builder.compile(checkpointer=MemorySaver())
 
+def fresh_turn(question: str):
+    return {
+        "question": question, "query": "", "chunks": [], "relevant": False, "attempts": 0,
+        "first_answer": "", "answer": "", "grounded": False, "issues": "", "gen_attempts": 0,
+        "candidate": {}, "approved": False, "ingested": False, "ingested_aid": "", "intent": "",
+    }
+
 if __name__ == "__main__":
-    config = {"configurable": {"thread_id": "demo-1"}}
-    #result = graph.invoke({"question": "How does FlashAttention reduce memory I/O?"})
-    result = graph.invoke({"question": "What is the paper Attention is all you need talking about?"}, config=config)
-
-    while "__interrupt__" in result:
-        intr = result["__interrupt__"][0]
-        print("\n>>> APPROVAL NEEDED:", intr.value["prompt"])
-        decision = input("your answer (yes/no): ")
-        result = graph.invoke(Command(resume=decision), config=config)
-
-    print("\n=== ANSWER ===", result["answer"])
+    config = {"configurable": {"thread_id": "session-1"}}
+    while True:
+        q = input("\nyou: ").strip()
+        if q.lower() in ("quit", "exit"):
+            break
+        result = graph.invoke(fresh_turn(q), config=config)
+        while "__interrupt__" in result:
+            intr = result["__interrupt__"][0]
+            print(f"\n>>> APPROVAL NEEDED:", intr.value["prompt"])
+            result = graph.invoke(Command(resume=input("yes/no: ")), config=config)
+        print("\nagent:", result["answer"])

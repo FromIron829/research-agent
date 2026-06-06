@@ -20,7 +20,7 @@ propose_ingestion → approval (interrupt) → (ingest ↺ retrieve | deny)
 
 - **Relevance gate** — grade the retrieved chunks; if weak, refine the query and retry (capped); if still weak after refinement, take the corrective branch.
 - **Groundedness gate** — after generating, check every claim against the sources; regenerate with the critique if unsupported (capped).
-- **Corrective ingestion** — when the corpus can't answer, search arXiv, ask the human, ingest the approved paper, loop back to retrieve.
+- **Corrective ingestion** — when the corpus can't answer, find the right paper, ask the human, ingest the approved paper, loop back to retrieve.
 
 ## Challenges (and how I solved them)
 
@@ -31,13 +31,15 @@ propose_ingestion → approval (interrupt) → (ingest ↺ retrieve | deny)
 
 2. **The groundedness grader was over-firing** — flagging supported claims as unsupported, triggering pointless (and destructive) rewrites. Root cause: I was grading against **truncated** chunk text, so the grader literally couldn't see the support. Fixes: grade against the **full** source text the generator used, and require the grader to **quote the exact unsupported sentence** — if it can't quote one, treat the answer as grounded.
 
-3. **arXiv search quality.** Passing the user's raw question (e.g., "How does Adam work?") returned irrelevant recent papers, not the foundational one. Fix: have the LLM rewrite the question into a focused paper-finding query (key terms / likely title).
+3. **Finding the right paper is harder than it looks — and the LLM is more reliable than search.** Passing the raw question to arXiv search returned irrelevant recent papers. My first fix: have the LLM rewrite the question into a focused query, fetch the top-5, and re-rank them with the LLM. This *still* failed — arXiv's `all:` relevance search frequently doesn't surface the canonical paper at all. Searching "Attention Is All You Need" returns papers that *cite* it (its title appears in their related-work sections), not the original; the re-rank then picks the closest-but-wrong candidate. The real fix was to **flip the priority**: the out-of-corpus gaps that trigger ingestion are almost always *foundational* papers (Transformer, Adam, BERT), and the LLM knows their exact arXiv IDs more reliably than keyword search surfaces them. So **LLM proposal from parametric knowledge became the primary source**, with arXiv search as a *secondary* fallback for long-tail papers. A data-driven architecture change — made after watching the search repeatedly fail.
 
-4. **arXiv is flaky and rate-limited** — hit HTTP 301 redirects, then 429s, then read-timeouts in sequence. Lessons:
-   - Replaced the `arxiv` library with a direct `requests` call (follows redirects, full control) + a descriptive `User-Agent`.
-   - **Resilience**: wrap every external call in a node with try/except + retry/backoff and **graceful degradation** — a node must never crash the whole graph because an API hiccupped.
-   - **Staying under the limit (proactive)** — this is the part I first got wrong: a **disk cache** (never re-request a query I've already searched) and a **self-throttle** (enforce ≥3s between *my own* requests so I never burst past arXiv's rate). These *prevent* the 429.
-   - **Handling the limit (reactive)** — when a 429 still happens, honor the `Retry-After` header and back off before retrying. *(I'd initially conflated this with the throttle — they're different: the throttle stops me earning the 429; the backoff handles it when it slips through.)*
+   Because the candidate's ID now comes from the LLM (and an arXiv ID is the single most error-prone token to ask a model for), I added **four defense-in-depth guards before any write** to the knowledge base: (1) the LLM can **abstain** (`known=false`) instead of fabricating; (2) **human approval** via `interrupt`; (3) a nonexistent ID **fails the PDF download** (404); (4) a valid-but-wrong ID downloads a *different* paper, caught by a **page-1 title check** against the proposed title. Only a paper that clears all four gets upserted.
+
+4. **arXiv is two services, and only one is the problem.** I burned real time on what looked like one bug — 301s, then 429s, then read-timeouts in sequence — before isolating it:
+   - **Two endpoints.** The *search* API (`export.arxiv.org/api/query`) is aggressively rate-limited; the *PDF download* (`arxiv.org/pdf/<id>`) is a different host and is reliable. Ingestion only needs the download given an ID — so making the LLM propose the ID (above) avoids the rate-limited endpoint entirely.
+   - **The 429/timeout was per-IP/network, not my code.** Confirmed by elimination: `curl` to the search API timed out on my wifi but returned 200 on a phone hotspot; the deployed AWS server hit timeouts/429s only *under test load*, never a code error. arXiv's limit is per-IP, escalates, and applies across machines I control — so switching networks doesn't fix it.
+   - **Client-side hardening:** a disk **cache** (never re-request a query), a **persistent file-based throttle** (≥3.5s between requests, surviving restarts — an in-memory one resets every run and immediately re-violates), exponential **backoff** honoring `Retry-After`, and **graceful degradation** (a failed search returns `[]` and funnels to the fallback, never crashing the graph).
+   - **The request-path lesson:** I first gave the search a *patient* backoff (up to ~4 min). In the deployed service that blocked the HTTP request past the load balancer's timeout → **504**, and clogged the single worker. Fix: in the request path, **fail fast** (short timeout, degrade in seconds); the patient backoff belongs in a *background job*, not a live request.
 
 5. **A write-capable agent needs a human gate.** Ingestion mutates the knowledge base, so it can't happen silently. Used LangGraph's `interrupt()` — the graph **pauses** mid-run, surfaces the candidate paper, and only proceeds on my approval (resumed via `Command(resume=...)`). This requires a **checkpointer** (`MemorySaver`) plus a `thread_id` so the paused state can be persisted and restored.
 
@@ -47,14 +49,33 @@ propose_ingestion → approval (interrupt) → (ingest ↺ retrieve | deny)
 
 8. **Anthropic `tool_use` doesn't enforce `required` schema fields** (unlike OpenAI strict outputs) — the model dropped a required `issues` field. Lesson: read structured tool output defensively with `.get(default)`, and default grades to "pass" so a missing grade doesn't trap the loop.
 
+9. **A paper I just ingested couldn't be retrieved — "dynamic ingestion" is a keep-two-indexes-in-sync problem.** After ingesting the Transformer paper, the next retrieve *still* couldn't find it. Cause: hybrid retrieval has two indexes and ingestion updated only one. The **vector** half (ChromaDB) was live and saw the new paper; the **BM25** half was a snapshot built once at import from `chunks.json` and never updated. In RRF, an existing chunk earns points from *both* lists while a freshly-ingested chunk earns from *only* the vector list — a structural penalty that buries it, worst of all for a query whose topic saturates the corpus. Two fixes:
+   - **Targeted boost** — after ingesting paper X to answer a question, retrieve from X directly via a metadata-filtered vector query (`where={"arxiv_id": X}`), guaranteeing it's in context for the loop.
+   - **Dynamic BM25** — on ingest, append the new chunks to `chunks.json` *and* rebuild the BM25 index (idempotent by `chunk_id`, which must equal the Chroma ID so RRF fuses correctly), so *future-session* queries find it too.
+
+10. **Every failure mode of an external call must funnel to one graceful path.** `propose_ingestion` had several early `return`s for the ways arXiv could fail (exception, empty results, re-rank found nothing). I fixed them one at a time — and each fix just exposed the next dead-end, because each was a separate exit that skipped the LLM fallback. The structural fix: compute a candidate, and if it's `None` for *any* reason, fall through to *one* fallback with *one* terminal give-up. Lesson: when the same bug keeps reappearing in different spots, the spots aren't the problem — the control flow has too many exits. Collapse N early-returns into one decision point and the whole class is fixed at once.
+
+11. **Deploying a stateful, write-capable agent.** Stage 2 was stateless and read-only; Stage 3 has a checkpointer (for `interrupt`) and mutates the vector store. The HTTP layer needs two endpoints — `/ask` (returns the approval prompt when the graph pauses) and `/resume` (continues the same run via `Command(resume=...)`), matched by `thread_id`. A subtle bug: I reused a fixed `thread_id` across test requests, so overlapping requests (one still running server-side after its client 504'd) collided in the checkpointer and corrupted each other's state — an in-corpus question even inherited another request's refined query. Fix: generate a unique `thread_id` per request. Deeper takeaway: a synchronous external fetch in the request path is an anti-pattern (it caused both the 504s and a corpus-uptime dependency); the production design decouples ingestion to an **async background worker** with `/ask` returning immediately.
+
+## Per-node evaluation
+
+I evaluated the two novel decision nodes in isolation (full write-up in `results/EXPERIMENTS.md`):
+- **Relevance gate** — 12/13, **0 dangerous missed-gaps**. Its one "error" (GPTQ graded insufficient) was a *retrieval* gap it correctly flagged — the right paper was in the corpus but the retrieved chunks were its intro/results, not its method section — not a grader miss.
+- **Groundedness gate** — 5/5, with the **deterministic citation floor** and the **LLM semantic grader** each verified independently on its own failure mode (fabricated citation vs. validly-cited-but-unsupported claim).
+
+Per-node isolation (call each node function on controlled inputs, no live arXiv) is the right eval pattern for a graph agent: reproducible, and it tells you *which* node failed rather than just that the end-to-end answer was wrong.
+
 ## Outcome
 
-- **In-corpus questions** — the agent answers from the 77-paper corpus with cited, groundedness-checked answers. *(Answer quality not yet formally evaluated — see next steps.)*
-- **Out-of-corpus questions** — the agent detects the knowledge gap, proposes the right arXiv paper, pauses for my approval, ingests it (download → strip references → chunk → embed → upsert), loops back, and answers from the freshly-acquired paper. **Verified end-to-end** on "How does Adam work?": ingested `1412.6980`, then produced a correct, fully-cited explanation of Adam — sourced from a paper that wasn't in the corpus 60 seconds earlier.
+- **In-corpus questions** — answered from the corpus with cited, groundedness-checked answers (answer quality evaluated separately in Stage 2's judge framework).
+- **Out-of-corpus questions** — the agent detects the gap, **proposes the right paper** (LLM-first, e.g. *Attention Is All You Need* → `1706.03762`), pauses for approval, **verifies and ingests** it (download → page-1 title check → `strip_references` → chunk → embed → upsert into *both* the vector and BM25 indexes), boosts it into the next retrieval, and answers from the freshly-acquired paper — grounded and cited. Verified end-to-end on *Attention Is All You Need* and *Adam*.
+  - *Honest note:* an earlier "verified end-to-end" run used a **hardcoded candidate** to exercise the ingestion pipeline while the search endpoint was rate-limited — the pipeline (download→clean→chunk→embed→upsert) was real, but the *discovery* step was stubbed. Discovery is now the real LLM-first proposal.
+- **Deployed** on AWS ECS Express (`api.py` → Docker → ECR → ECS, single task): in-corpus Q&A is reliable; out-of-corpus degrades gracefully when arXiv is unavailable.
 
 ## Known limitations / next steps
 
-- **BM25 is stale.** Ingested papers are added to the vector store only; the BM25 index is built once at import, so new papers are found via vector similarity (+ RRF) but get no lexical boost. Proper fix: persist new chunks and rebuild BM25, or use a dynamic index.
-- **arXiv search is currently behind a temporary stub** (Adam paper) while rate-limited — restore the real LLM-query + `search_arxiv` call.
-- **Single-paper, synchronous ingestion** (~30-60s, blocks the request). Production design: decouple to a background queue processed at arXiv's allowed rate.
-- **Per-node quality not yet evaluated.** The relevance gate, groundedness gate, and ingestion each deserve their own eval (reusing the Stage 2 LLM-as-judge) — e.g., does the relevance gate fire on out-of-corpus questions and *not* on in-corpus ones? This is the planned rigor capstone (Stage 3.5).
+- **Discovery depends on the model knowing the paper.** LLM-first is reliable for foundational papers (and their exact IDs); long-tail papers fall back to arXiv keyword search, which is flaky. The page-1 title check is a heuristic, not authoritative verification.
+- **Synchronous, single-paper ingestion** (~30-60s, blocks the request). Production design: decouple to an **async background worker** processed at arXiv's allowed rate, with `/ask` returning immediately — this also removes the request-path timeout/504 risk entirely.
+- **Deployed storage is ephemeral.** The in-container Chroma upserts and in-memory checkpointer don't survive a container restart. Production needs a **persistent vector store** + a **checkpoint DB** (e.g. SqliteSaver/Postgres) + a writable volume.
+- **Dynamic BM25 rebuilds the whole index on each ingest.** Cheap at this scale (a few thousand chunks); for a much larger corpus, switch to an incremental search index (Tantivy / `bm25s` / Elasticsearch).
+- **No interrupt-aware frontend yet.** The two-step `/ask` → `/resume` approval flow is exercised via `curl`; a small UI that surfaces the approval prompt is the remaining polish.
