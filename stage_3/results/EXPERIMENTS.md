@@ -62,3 +62,73 @@ The Stage 3 agent is a LangGraph Corrective-RAG graph (build narrative in `stage
 - Groundedness fixtures are hand-authored, not sampled from real agent outputs.
 - Relevance labels use corpus-membership as a proxy for retrieval-sufficiency (the GPTQ case shows where that breaks).
 - The `ingest`/`search` nodes are exercised via the end-to-end run (Stage 3.3, verified on the Adam paper) and fixtures, not a labeled eval; post-ingestion answer quality is not separately scored.
+
+---
+
+## Experiment 2 — Memory-aware reasoning layer: history-aware retrieval + plan-and-execute
+
+**Date:** 2026-06-06
+**Harness:** interactive REPL (`python stage_3/graph.py`), single canonical multi-turn case. *Not* a scripted eval — this was feature development plus hypothesis-driven debugging. See "Known limitations" for what that costs.
+
+### Setup
+
+- **What's new:** the agent gained a short-term memory layer (`history` in state, persisted by the checkpointer) and, on top of it, three reasoning behaviors this experiment validates:
+  1. **History-aware query rewriting** — resolve pronouns/references against the conversation before retrieval (`plan_query_node`, replacing the earlier `rewrite_query_node`).
+  2. **Plan-and-execute decomposition** — split a question into one `sub_query` per topic, but *only* for topics not already covered in history; the ReAct "Thought" step deciding what to fetch.
+  3. **History-aware grading** — `grade_relevance` and `grade_groundedness` (and the deterministic `verify_citations` floor) judge the answer against history **+** retrieved chunks, not chunks alone.
+- **Test method:** one canonical cross-entity follow-up, run interactively:
+  - Turn 1: *"What is FlashAttention?"* (corpus question, populates history)
+  - Turn 2: *"How does it compare to GPTQ?"*
+- **Why this case:** it simultaneously stresses every new behavior — pronoun resolution ("it"), the known-vs-missing boundary (FlashAttention is in history; GPTQ is not), cross-entity synthesis (no single paper compares the two), and the corrective branches (GPTQ is in-corpus but may retrieve thin, and could fall through to ingestion). One question, maximum surface area. This is the complement to Experiment 1's per-node isolation: end-to-end, but n=1.
+- **Agent model:** `claude-sonnet-4-6` throughout (the `/model` switch mid-session changed the *coding assistant*, not the agent's hardcoded `MODEL`).
+
+### Hypothesis
+
+The design bet, committed before running turn 2: plan-and-execute + history-aware grading will answer the comparison **grounded**, by (a) routing to `corpus` (not `followup`), (b) rewriting "it" → FlashAttention, (c) fetching **only** GPTQ (FlashAttention already known from history), (d) grading the retrieval sufficient on history+chunks combined, and (e) passing groundedness on the synthesized comparison.
+
+Sub-prediction (honest, and as it turned out wrong in its optimism): failures, if any, would surface in the **grading gates** — the LLM-judge surface validated in Exp 1 — not in routing or plumbing.
+
+### Result
+
+The design did **not** work on the first attempt. Five distinct failure modes surfaced and were fixed in sequence; only then did the case converge. The sequence *is* the finding.
+
+| # | Observed failure | Root cause | Fix |
+|---|------------------|-----------|-----|
+| 1 | "compare to GPTQ?" routed to `followup` → answered from parametric knowledge, ungrounded, no retrieval | `ROUTE_TOOL` didn't distinguish "operates on prior content" from "introduces a new entity" | followup desc: any **new** entity/paper/technique → `corpus`. Tiebreaker: when in doubt → corpus (spurious retrieval is cheap; spurious followup is silently ungrounded) |
+| 2 | Plan retrieved **both** FA and GPTQ; grader then rejected on "'it' is ambiguous" | plan didn't reason about what history already covered; graders saw raw `question`, not the rewrite | plan Step 2 skips history-covered topics → `sub_queries=['GPTQ ...']`; graders use `rewritten_query` + injected history |
+| 3 | After ingestion loop-back, query reverted to raw "How does it compare to GPTQ?" | `ingest_node` reset `query` to `state["question"]`; rewrite was never stored | new state fields `rewritten_query`/`sub_queries`, preserved across the loop |
+| 4 | FlashAttention citation flagged as **fabricated** | `verify_citations` checked only current `chunks` (GPTQ); FA was in history | added `history` param — papers cited in prior assistant turns are accepted (validated when first generated) |
+| 5 | **Groundedness flagged "FlashAttention benefits both training and inference"** — a reasonable inference, not a fabrication; loop never converged, hit the cap | a binary grounded/not grader punishes synthesis; each regeneration produced a *different* over-generalization | `GROUND_TOOL` flags **only** specific fabricated facts/numbers/results, not high-level synthesis ("comparisons synthesize by nature") |
+
+**Final converged run (turn 2):**
+
+```
+[route] intent=corpus
+[plan] rewritten='How does FlashAttention compare to GPTQ?'
+[plan] sub_queries=['GPTQ quantization method for large language models']
+[grade] sufficient=True (attempt 1)
+[groundedness] grounded=True (gen attempt 1) — none
+```
+
+The comparison answered grounded on the first generation: pronoun resolved, only the missing entity fetched, synthesis claims preserved ("complementary techniques," "could be applied simultaneously"), every GPTQ number correctly cited, and — critically — the prior fabrication (a "4–8× size reduction" figure that appeared in an earlier draft) absent.
+
+### Interpretation
+
+1. **The sub-prediction was half right.** Failures did cluster in the grading gates (#2, #4, #5) — but routing (#1) and state plumbing (#3) failed too, which the hypothesis didn't anticipate. The honest read: adding a new *context source* (history) is not a local change. **Every node that consumes or judges the answer must be re-threaded to see it** — router, planner, both graders, the citation floor, and the state that survives loops. Four of the five bugs are the same systemic omission viewed from different nodes.
+
+2. **Headline finding — groundedness verification is in tension with synthesis (#5).** A strict grounded-or-not grader treats every inferential leap as ungrounded, so it punishes the model precisely for doing a comparison well. The fix is a *distinction*, not a threshold: fabricated specifics (a number/benchmark absent from sources) vs. reasonable characterization (a statement that follows from combining sources). That line kept the real catch (the "4–8×" fabrication) while letting synthesis pass. This generalizes beyond comparisons — any multi-source answer synthesizes.
+
+3. **Plan-and-execute is the ReAct "Thought" the earlier loop lacked.** The prior graph was conditional routing with implicit grading; the agent never reasoned about *what it already knew*. `plan_query_node` Step 2 ("skip topics already in history") makes that reasoning explicit and observable in the trace — and it's what produced the single-`sub_query` fetch instead of redundantly re-retrieving FlashAttention.
+
+### Decision
+
+- **Ship the memory-aware reasoning layer** — verified on the canonical case end-to-end.
+- **Convert this n=1 arc into labeled evals** (the real next step, mirroring Exp 1's per-node discipline): (a) a **router** classification set (corpus vs followup vs — later — memory_recall), explicitly including new-entity follow-ups, the failure that started this; (b) a **planner** decomposition set (does it produce the right sub_queries, and does it correctly *omit* history-covered topics?); (c) **comparison-grounding** cases that check synthesis survives while fabrications are caught.
+- **`verify_citations` history-acceptance is a deliberate trust boundary:** we trust a paper cited in a prior turn because it was groundedness-checked then. Documented so it isn't mistaken for a hole.
+
+### Known limitations
+
+- **n=1, interactive, not scripted.** One test case, run by hand. Directional evidence that the path works — not a measured success rate. The Exp 1 per-node harnesses are the model to follow; this arc has not yet been turned into one.
+- **Hypotheses partly reconstructed during debugging.** The top-level design bet was committed before turn 2, but the five fix-level hypotheses were formed *as* each failure appeared — this is debugging, not pre-registered experimentation. Disclosed rather than dressed up as foresight.
+- **Keep-best fallback is untested.** `respond_node` now returns the lowest-issue draft (`best_answer`/`best_n_issues`), but the final run converged on gen-attempt-1, so the fallback path never fired. Needs a deliberately twice-failing groundedness case.
+- **The synthesis-vs-fabrication boundary is a prompt heuristic**, not a measured one — its precision/recall (does it ever wave through a real fabrication framed as "synthesis"?) is exactly what eval (c) above must quantify.

@@ -57,9 +57,17 @@ def _title_matches(proposed: str, page_text: str, threshold: float = 0.6):
     hits = sum(1 for w in words if w in head)
     return hits / len(words) >= threshold
 
-def verify_citations(answer: str, chunks: list[dict]) -> list[str]:
+def verify_citations(answer: str, chunks: list[dict], history: list[dict] | None = None) -> list[str]:
     """Deterministic: return cited papers that were NOT in the retrieved chunks (likely fabricated)."""
     retrieved = {_norm(c["paper_title"]) for c in chunks}
+    if history:
+        for msg in history:
+            if msg["role"] == "assistant":
+                for block in CITE_BLOCK.findall(msg["content"]):
+                    for entry in block.split(";"):
+                        m = ENTRY.search(entry)
+                        if m:
+                            retrieved.add(_norm(m.group(1).strip()))
     bad = []
     for block in CITE_BLOCK.findall(answer):
         for entry in block.split(";"):           # a bracket can hold multiple papers
@@ -100,6 +108,8 @@ def _throttle(min_gap: float = 3.5):
 class GraphState(TypedDict):
     question: str
     query: str
+    rewritten_query: str
+    sub_queries: list[str]
     chunks: list[dict]
     relevant: bool
     attempts: int
@@ -114,6 +124,8 @@ class GraphState(TypedDict):
     ingested_aid: str
     history: Annotated[list[dict], operator.add]
     intent: str
+    best_answer: str
+    best_n_issues: int
 
 # ---------- Paper injection ----------
 def search_arxiv(query: str, max_results: int = 1, retries: int = 2):
@@ -162,7 +174,8 @@ def propose_ingestion_node(state: GraphState):
     # PRIMARY: the LLM names the foundational paper. For the well-known papers the corpus is missing
     # (Transformer, Adam, BERT...), the LLM knows the exact arXiv ID more reliably than keyword search
     # surfaces it. A wrong/hallucinated ID is caught downstream by the title check in ingest_node.
-    cand = llm_propose_paper(state["question"])
+    question = state.get("rewritten_query") or state["question"]
+    cand = llm_propose_paper(question)
     if cand:
         print(f"[propose] LLM proposed: {cand['title']} ({cand['arxiv_id']})")
 
@@ -170,7 +183,7 @@ def propose_ingestion_node(state: GraphState):
     if cand is None:
         q = client.messages.create(model=MODEL, max_tokens=40, messages=[{"role": "user", "content":
                 "Output ONLY a concise arXiv search query (key terms or likely title) for the foundational "
-                f"paper answering this. Plain text only — no markdown or quotes.\n{state['question']}"}])
+                f"paper answering this. Plain text only — no markdown or quotes.\n{question}"}])
         search_query = re.sub(r'[*`"]', "", "".join(b.text for b in q.content if b.type == "text")).strip()
         print(f"[propose] arXiv query: {search_query!r}")
         try:
@@ -207,15 +220,25 @@ def _retrieve_from_paper(query: str, aid: str, k: int = 6):
     } for cid, doc, m, dist in zip(res["ids"][0], res["documents"][0], res["metadatas"][0], res["distances"][0])]
 
 def retrieve_node(state: GraphState):
-    query = state.get("query") or state["question"]
-    chunks = retrieve_hybrid(query, k=10)
+    sub_queries = [s for s in state.get("sub_queries", []) if s]
+    if not sub_queries:
+        sub_queries = [state.get("query") or state["question"]]
+    
+    seen = set()
+    merged = []
+    for q in sub_queries:
+        for chunk in retrieve_hybrid(q, k=10):
+            if chunk["chunk_id"] not in seen:
+                seen.add(chunk["chunk_id"])
+                merged.append(chunk)
+
     aid = state.get("ingested_aid")
-    if aid and not any(c["arxiv_id"] == aid for c in chunks):
-        boost = _retrieve_from_paper(query, aid, k=6)
-        chunks = boost + chunks
-        print(f"[retrieve] boosted with {len(boost)} chunks from freshly-ingested {aid}")
-    print(f"[retrieve] query={query!r} -> {len(chunks)} chunks")
-    return {"chunks": chunks, "query": query}
+    if aid and not any(c["arxiv_id"] == aid for c in merged):
+        boost = _retrieve_from_paper(sub_queries[0], aid, k=6)
+        merged = boost + merged
+
+    print(f"[retrieve] sub_queries={sub_queries} -> {len(merged)} chunks")
+    return {"chunks": merged, "query": sub_queries[0]}
 
 # ---------- Tools ----------
 GRADE_TOOL = {
@@ -233,12 +256,21 @@ GRADE_TOOL = {
 
 GROUND_TOOL = {
     "name": "groundedness",
-    "description": "Check whether every claim in the answer is supported by the sources.",
+    "description": "Check whether the answer fabricates specific facts not supported by the sources.",
     "input_schema": {
         "type": "object",
         "properties": {
             "grounded": {"type": "boolean"},
-            "issues": {"type": "string", "description": "Unsupported claims, or 'none'."},
+            "issues": {
+                "type": "string",
+                "description": (
+                    "Flag a claim ONLY if it asserts a specific fact, number, benchmark, or result "
+                    "that is absent from or contradicted by the sources (a fabrication). "
+                    "Do NOT flag high-level synthesis, characterizations, or reasonable inferences "
+                    "that follow from combining the sources — comparison answers are expected to synthesize. "
+                    "Quote each fabricated sentence verbatim, or 'none'."
+                ),
+            },
         },
         "required": ["grounded", "issues"],
     },
@@ -273,11 +305,40 @@ ROUTE_TOOL = {
         "type": "object",
         "properties": {
             "intent": {"type": "string", "enum": ["corpus", "followup"],
-                       "description": "corpus = a question answerable from the research-paper knowledge base. "
-                       "followup = operates on the conversation so far (summarize / rephrase / "
-                       "explain the previous answer); no new retrieval needed."},
+                       "description": "corpus = any question that needs retrieval from the research-paper knowledge base, "
+                       "including comparisions involving a new entity not yet discussed. "
+                       "followup = the question can be fully answered from the conversation above. "
+                       "It summarizes, rephrases, or asks about content ALREADY in the prior assistant answer. "
+                       "If the question introduces ANY entity, paper, or technique not covered in the conversation "
+                       "(even if phrased conversationally), classify as corpus."
+                       },
         },
         "required": ["intend"],
+    },
+}
+
+PLAN_TOOL = {
+    "name": "plan_queries",
+    "description": "Rewrite the user's question and split it into retrieval sub-queries.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "rewritten_question": {
+                "type": "string",
+                "description": "The question rewritten as a fully standalone sentence - resolve all pronous and references using the conversation history.",
+            },
+            "sub_queries": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "One focused retrieval query per distinct topic. "
+                    "For a simple question: one element. "
+                    "For a comparison or contrast between N distinct things: N elements, one per thing. "
+                    "Keep each sub-query short and factual - it goes directly into a vector search."
+                ),
+            },
+        },
+        "required": ["rewritten_question", "sub_queries"],
     },
 }
 
@@ -292,6 +353,35 @@ def route_intent_node(state: GraphState):
     print(f"[route] intent={intent}")
     return {"intent": intent}
 
+def plan_query_node(state: GraphState):
+    hist = format_history(state.get("history", []))
+    if not hist:
+        q = state["question"]
+        print(f"[plan] no histroy - passthrough: {q!r}")
+        return {"query": q, "rewritten_query": q, "sub_queries": [q]}
+    
+    msg = client.messages.create(
+        model=MODEL, max_tokens=200,
+        tools=[PLAN_TOOL], tool_choice={"type": "tool", "name": "plan_queries"},
+        messages=[{"role": "user", "content":
+                   f"{hist}\nNew message: {state['question']}\n\n"
+                   "Step 1: rewrite the message as a fully standalone question - "
+                   "resolve all pronous and references using the conversation above.\n\n"
+                   "Step 2: Decide what new information needs to be fetched from the knowledge base. "
+                   "Any topic already explained in detail in the conversation above does NOT need a sub-query - "
+                   "that information is avaliable from history and will be used at generation time. "
+                   "Only generate sub-queries for topics NOT yet covered in the conversation."}],
+    )
+    p = next((b.input for b in msg.content if b.type == "tool_use"), {})
+    rewritten = (p.get("rewritten_question") or state["question"]).strip()
+    sub_queries = [s.strip() for s in (p.get("sub_queries") or []) if s.strip()]
+    if not sub_queries:
+        sub_queries = [rewritten]
+    
+    print(f"[plan] rewritten={rewritten!r}")
+    print(f"[plan] sub_queries={sub_queries}")
+    return {"query": sub_queries[0], "rewritten_query": rewritten, "sub_queries": sub_queries}
+
 def answer_from_history_node(state: GraphState):
     hist = format_history(state.get("history", []))
     msg = client.messages.create(
@@ -305,14 +395,38 @@ def answer_from_history_node(state: GraphState):
             "history": [{"role": "user", "content": state["question"]},
                         {"role": "assistant", "content": answer}]}
 
+def rewrite_query_node(state: GraphState):
+    hist = format_history(state.get("history", []))
+    if not hist:
+        return {"query": state["question"]}
+    msg = client.messages.create(
+        model=MODEL, max_tokens=80,
+        messages=[{"role": "user", "content":
+                   f"{hist}\nNew message: {state['question']}\n\n"
+                   "Rewrite the new message as a standalone search query that resolves all pronous "
+                   "and references using the conversation above. Output only the query string."}],
+    )
+    new_query = next((b.text for b in msg.content if b.type == "text"), state["question"]).strip()
+    print(f"[rewrite_query] {state['question']!r} -> {new_query!r}")
+    return {"query": new_query}
+
 def grade_relevance_node(state: GraphState):
     context = "\n\n".join(f"[{c['paper_title']} p{c['page']}] {c['text']}" for c in state["chunks"])
+    question = state.get("rewritten_query") or state["question"]
+    hist = format_history(state.get("history", []))
     msg = client.messages.create(
         model=MODEL, max_tokens=300,
         tools=[GRADE_TOOL], tool_choice={"type": "tool", "name": "grade"},
         messages=[{"role": "user", "content":
-                   f"Question: {state['question']}\n\nRetrieved sources:\n{context}\n\n"
-                   "Are these sufficient to answer the question well?"}],
+                   f"{hist}"
+                   f"Question: {question}\n\n"
+                   f"Newly retrieved sources:\n{context}\n\n"
+                   "The conversation history above is also available at generation time. "
+                   "Grade whether the retrieved sources COMBINED WITH the conversation history "
+                   "are sufficient to answer the question. "
+                   "For comparision questions, sources convering each entity separately are sufficient - "
+                   "no single source needs to directly compare them"
+                   }],
     )
     grade = next(b.input for b in msg.content if b.type == "tool_use")
     sufficient = grade.get("sufficient", True)
@@ -323,14 +437,18 @@ def grade_relevance_node(state: GraphState):
 
 def grade_groundedness_node(state: GraphState):
     context = "\n\n".join(f"[{c['paper_title']} p{c['page']}] {c['text']}" for c in state["chunks"])
+    hist = format_history(state.get("history", []))
     msg = client.messages.create(
         model=MODEL, max_tokens=400,
         tools=[GROUND_TOOL], tool_choice={"type": "tool", "name": "groundedness"},
         messages=[{"role": "user", "content":
-            f"Sources:\n{context}\n\nAnswer:\n{state['answer']}\n\n"
-            "List ONLY claims that are absent from or contradicted by the sources, quoting the exact "
-            "sentence from the answer for each. If you cannot quote a specific unsupported sentence, "
-            "the answer is grounded (set grounded=true, issues='none')."}],
+            f"{hist}"
+            f"Retrieved sources:\n{context}\n\n"
+            f"Answer:\n{state['answer']}\n\n"
+            "Flag ONLY claims asserting a specific fact, number, or result that is absent from or "
+            "contradicted by BOTH the retrieved sources AND the conversation history (a fabrication). "
+            "Do NOT flag reasonable synthesis or high-level characterizations — comparisons synthesize by nature. "
+            "If you cannot quote a specific fabricated sentence, set grounded=true, issues='none'."}],
     )
     g = next(b.input for b in msg.content if b.type == "tool_use")
     grounded = g.get("grounded", True)
@@ -341,7 +459,7 @@ def grade_groundedness_node(state: GraphState):
         grounded = True
 
     # Deterministic floor: a citation to a paper that wasn't retrieved is fabricated, full stop.
-    bad = verify_citations(state["answer"], state["chunks"])
+    bad = verify_citations(state["answer"], state["chunks"], state.get("history", []))
     if bad:
         grounded = False
         note = "Citations to papers NOT in the retrieved sources (fabricated): " + "; ".join(bad)
@@ -349,8 +467,15 @@ def grade_groundedness_node(state: GraphState):
         print(f"[citation-check] {len(bad)} unresolved citation(s): {bad}")
 
     gen_attempts = state.get("gen_attempts", 0) + 1
+    n_issues = 0 if grounded else max(1, len([s for s in issues.split("|") if s.strip()]))
     print(f"[groundedness] grounded={grounded} (gen attempt {gen_attempts}) — {issues[:80]}")
-    return {"grounded": grounded, "issues": issues, "gen_attempts": gen_attempts}
+
+    out = {"grounded": grounded, "issues": issues, "gen_attempts": gen_attempts}
+    best_n = state.get("best_n_issues")
+    if grounded or best_n is None or n_issues < best_n:
+        out["best_answer"] = state["answer"]
+        out["best_n_issues"] = 0 if grounded else n_issues
+    return out
 
 # ---------- Refine query to retrieve again ----------
 def refine_query_node(state: GraphState):
@@ -391,9 +516,12 @@ def generate_node(state: GraphState):
     return out
 
 def respond_node(state: GraphState):
-    answer = state["answer"] if state.get("grounded") else state.get("first_answer", state["answer"])
-    if not state.get("grounded"):
-        print("[respond] ungrounded after cap -> returning the original (un-rewritten) draft")
+    if state.get("grounded"):
+        answer = state["answer"]
+    else:
+        answer = state.get("best_answer") or state.get("first_answer") or state["answer"]
+        print(f"[respond] ungrounded after cap -> returning best attempt "
+              f"({state.get('best_n_issues')} issue(s))")
     return {"answer": answer,
             "history": [{"role": "user", "content": state["question"]},
                         {"role": "assistant", "content": answer}]}
@@ -458,7 +586,11 @@ def ingest_node(state: GraphState):
     add_chunks(new_chunks)
 
     print(f"[ingest] upserted into '{_collection.name}' -> now includes {cand['title']}")
-    return {"ingested": True, "ingested_aid": aid, "attempts": 0, "query": state["question"]}
+    return {"ingested": True,
+            "ingested_aid": aid,
+            "attempts": 0, 
+            "query": state.get("rewritten_query") or state["question"],
+            "sub_queries": state.get("sub_queries") or [state.get("rewritten_query") or state["question"]]}
 
 # ---------- Routers ----------
 def route_after_grade(state: GraphState):
@@ -515,12 +647,14 @@ builder.add_node("approval", approval_node)
 builder.add_node("ingest", ingest_node)
 builder.add_node("route_intent", route_intent_node)
 builder.add_node("answer_from_history", answer_from_history_node)
+builder.add_node("plan_query", plan_query_node)
 
 builder.add_edge(START, "route_intent")
 builder.add_conditional_edges("route_intent", lambda s: s["intent"], {
-    "corpus": "retrieve",
+    "corpus": "plan_query",
     "followup": "answer_from_history",
 })
+builder.add_edge("plan_query", "retrieve")
 builder.add_edge("answer_from_history", END)
 builder.add_edge("retrieve", "grade_relevance")
 builder.add_conditional_edges("grade_relevance", route_after_grade, {
@@ -548,9 +682,9 @@ graph = builder.compile(checkpointer=MemorySaver())
 
 def fresh_turn(question: str):
     return {
-        "question": question, "query": "", "chunks": [], "relevant": False, "attempts": 0,
+        "question": question, "query": "", "rewritten_query": "", "sub_queries": [], "chunks": [], "relevant": False, "attempts": 0,
         "first_answer": "", "answer": "", "grounded": False, "issues": "", "gen_attempts": 0,
-        "candidate": {}, "approved": False, "ingested": False, "ingested_aid": "", "intent": "",
+        "candidate": {}, "approved": False, "ingested": False, "ingested_aid": "", "intent": "", "best_answer": "", "best_n_issues": None,
     }
 
 if __name__ == "__main__":
