@@ -16,10 +16,12 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
-## Phase 0 — Close out the memory layer (current feature)
+## Phase 0 — Close out the memory layer (current feature) ✅ COMPLETE
 
 The short-term memory + plan-and-execute reasoning works (Exp 2). Finish the feature with the
 rigor that is the project's differentiator, then add long-term recall.
+**Status: all six items done (Exp 3-8). Three memory tiers — short-term history, in-session
+summary, cross-session episodic — built and per-node validated.**
 
 - [x] **0.1 Eval the intent router** as a classifier — labeled set incl. new-entity follow-ups
   (the failure that started Exp 2: corpus vs followup, later vs memory_recall). Report error-type
@@ -45,9 +47,13 @@ rigor that is the project's differentiator, then add long-term recall.
   **Done (Exp 7):** `summarize_node` at graph entry + `summary`/`n_summarized` state; incremental
   fold (no re-summarize), first turns free, end-to-end verified. (Storage still unbounded — context
   only; summary *fidelity* eval deferred.)
-- [ ] **0.6 Long-term episodic memory** — conversations Chroma collection (past turns +
+- [x] **0.6 Long-term episodic memory** — conversations Chroma collection (past turns +
   timestamp + embedding) + a `memory_recall` intent for cross-session "what did I ask last week."
   Decisions: when-to-write, read = recency + relevance, bound growth (dedup/decay).
+  **Done (Exp 8):** `episodic.py` + `recall_node` + write path; `eval_episodic.py` caught two real
+  bugs (L2-vs-cosine metric, silent same-second id collision) + an embed A/B (Q+A → recall@1 2/5→5/5).
+  Routing 7/8 (0 hijacks). Cross-session recall verified. Deferred: recency filter, per-user
+  isolation, growth bounds, followup/memory_recall tiebreaker.
 
 ## Phase 1 — Make it real: durable, session-aware state (Tier 1)
 

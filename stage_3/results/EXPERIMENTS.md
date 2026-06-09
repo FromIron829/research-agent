@@ -376,3 +376,62 @@ Short-term memory previously kept only the last `MAX_TURNS` turns (`format_histo
 - **Summary *fidelity* is not evaluated.** The checks confirm the right turns are folded and topics appear, but not that a downstream node can correctly answer a follow-up whose answer now lives *only* in the summary. That's the real test of summarization quality (a "followup answered from summarized-away content" case) and is not yet built.
 - **Compounding compression loss** under many successive evictions (summary-of-summary drift) is untested.
 - Each eviction triggers one summarization LLM call (added latency on the turn that crosses the window) — acceptable, but a per-turn cost worth noting for the Phase 2 cost work.
+
+---
+
+## Experiment 8 — Long-term episodic memory: routing + recall@k (Roadmap Phase 0.6)
+
+**Date:** 2026-06-09
+**Harness:** `stage_3/eval/eval_episodic.py` (routing + recall@k, self-cleaning seed)
+
+The third memory tier: **episodic memory across sessions** — "RAG over your own conversation turns." Components: `episodic.py` (a Chroma `conversations` collection), a `memory_recall` router intent, a `recall_node`, and a write path in `respond_node` (`remember_turn`). The checkpointer is per-thread; this store outlives any thread.
+
+### Setup
+
+- **Part 1 — routing (3-class):** `route_intent_node` on `memory_recall` questions + corpus/followup controls. Two error types: **recall-miss** (a recall question routed elsewhere → no episodic lookup) and **hijack** (a real question pulled into `memory_recall` → answered "nothing stored").
+- **Part 2 — recall@k:** seed 5 distinct past turns, query with **paraphrases that share no keywords with the stored questions**, check the right turn is retrieved. The eval seeds via `remember_turn` and self-cleans its thread.
+
+### Hypothesis
+
+Routing sends `memory_recall` questions to `memory_recall` with **0 hijacks**; recall retrieves the right past turn for paraphrased queries. The `followup`/`memory_recall` boundary is the likely routing soft spot (both operate on "past conversation").
+
+### Result — feature works; the recall eval caught TWO real bugs before any clean number.
+
+**Routing: 7/8, 0 hijacks.** The one miss is the predicted boundary — *"Remind me what we discussed about quantization"* → `followup` (a recall-miss, the safe direction; no real question was hijacked).
+
+**Recall — two bugs surfaced, fixed, then validated:**
+1. **Wrong distance metric.** The `papers` collection uses cosine (`hnsw:space`); `conversations` was created with no metadata → **L2 default**. OpenAI embeddings aren't unit-normalized, so L2 is magnitude-dominated → the same 2-3 docs ranked top for *every* query. Fix: create with `metadata={"hnsw:space": "cosine"}`. (Gotcha: Chroma ignores the metric on an existing collection — had to delete + recreate.)
+2. **Silent id collision.** Ids were `f"{thread_id}-{ts:.0f}"` — integer-**second** granularity. Seeding 5 turns rapidly → they fell in 2 one-second buckets → **only 2 of 5 survived** (same-second `upsert` overwrites). Fix: `uuid4`-based ids; keep `ts` in metadata for recency.
+
+After both fixes: **recall@3 = 5/5, recall@1 = 2/5.**
+
+**Improvement — embed target A/B (the `recall@1` gap):**
+
+| Embedded text | recall@1 | recall@3 |
+|---|---|---|
+| question only | 2/5 | 5/5 |
+| **question + answer** | **5/5** | 5/5 |
+
+The misses were all *description* queries ("the IO-aware attention algorithm") against *bare-question* embeddings ("What is FlashAttention?") — the descriptive content lives in the **answer**. Embedding `question + answer` puts it in the vector → recall@1 2/5 → 5/5.
+
+### Interpretation
+
+1. **The recall@k eval earned its keep — twice.** Both bugs were invisible to the end-to-end smoke test (which used few entries and writes spaced far enough apart to avoid same-second collision, and keyword-overlapping queries). Only a *multi-write, paraphrase-query* eval exposed them. The id collision in particular is **silent data loss** — the dangerous kind: the store "worked," returned answers, and quietly dropped turns.
+2. **Both are the "looks-implemented" trap again** (cf. keep-best, 0.4): code that runs and returns plausible output but is broken under real load. The discipline that catches them is forcing the real conditions — concurrent writes, semantically-distant queries.
+3. **The embed target is a genuine retrieval lever, now measured.** A name embeds far from its description; recall queries are descriptions. `question + answer` is the cheap, correct default — 2/5→5/5 with one line.
+4. **`recall_node` uses k=3, and recall@3 was 5/5 even before the embed fix** — so the right turn was always in the LLM's context. The feature was *functionally* correct before the recall@1 improvement; the A/B sharpened ordering, not correctness.
+5. **Routing boundary** (`followup` vs `memory_recall`) is the 0.1 finding one tier up: both touch "past conversation," distinguished by in-session vs cross-session. Tiebreaker deferred.
+
+### Decision
+
+- **0.6 complete. Phase 0 (the memory layer) is COMPLETE.** Three tiers — short-term history, in-session summary, cross-session episodic — all built and per-node validated.
+- **Next: Phase 1** (durable, session-aware state) — the highest-leverage gap, and the thing that makes *all three* memory tiers usable in the deployed API.
+
+### Known limitations
+
+- **Tiny store (5 seeds).** Recall over a small collection is easy; a realistic store (thousands of turns, near-duplicate questions) is harder — these numbers are directional.
+- **No recency/temporal filtering.** "Last week" is ignored — recall is pure similarity. `ts` is stored but unused for ranking.
+- **No per-user isolation.** The store is global (no auth) — same multi-tenancy gap as Roadmap Tier 3.
+- **Unbounded growth.** Every corpus turn is stored forever; no dedup/decay.
+- **`followup`/`memory_recall` boundary** unfixed (1/8 routing miss) — needs the in-session-vs-cross-session tiebreaker.
+- **Cosine-metric gotcha** is a footgun: changing a collection's metric requires delete + re-seed.

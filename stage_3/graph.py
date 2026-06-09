@@ -12,6 +12,7 @@ from typing import TypedDict
 import xml.etree.ElementTree as ET
 from typing import TypedDict, Annotated
 from memory import format_history, summarize_history
+import episodic
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -322,6 +323,9 @@ ROUTE_TOOL = {
                        "or mechanism that is NOT actually stated in the prior answer, classify as corpus — "
                        "followup applies ONLY when the answer is already contained in the conversation. "
                        "When unsure whether the conversation fully covers the answer, choose corpus."
+                       "memory_recall = the user is asking about THEIR OWN past conversations, possibly across "
+                       "sessions (e.g. 'what did I ask about last week', 'what was that paper you mentioned earlier'). "
+                       "Answer by retrieving from the stored conversation history, NOT the papers corpus."
                        },
         },
         "required": ["intent"],
@@ -373,6 +377,30 @@ def route_intent_node(state: GraphState):
     intent = next((b.input for b in msg.content if b.type == "tool_use"), {}).get("intent", "corpus")
     print(f"[route] intent={intent}")
     return {"intent": intent}
+
+def recall_node(state: GraphState):
+    hists = episodic.recall(state["question"], k=3)
+    if not hists:
+        answer = "I don't have any earlier conversations stored to recall from yet."
+        return {"answer": answer,
+                "history": [{"role": "user", "content": state["question"]},
+                            {"role": "assistant", "content": answer}]}
+    ctx = "\n\n".join(
+        f"[{datetime.fromtimestamp(h['ts'])}] You asked: {h['question']}\n"
+        f"I answered: {h['answer']}"
+        for h in hists
+    )
+    msg = client.messages.create(
+        model=MODEL, max_tokens=400,
+        messages=[{"role": "user", "content":
+                   f"Past conversation turns (most relevant first):\n{ctx}\n\n"
+                   f"The user now asks: {state['question']}\n\n"
+                   "Answer using ONLY these past turns - remind them what was discussed and when."}],
+    )
+    answer = "".join(b.text for b in msg.content if b.type == "text")
+    return {"answer": answer,
+            "history": [{"role": "user", "content": state["question"]},
+                        {"role": "assistant", "content": answer}]}
 
 def plan_query_node(state: GraphState):
     hist = format_history(state.get("history", []), state.get("summary", ""))
@@ -541,13 +569,14 @@ def generate_node(state: GraphState):
         out["first_answer"] = answer
     return out
 
-def respond_node(state: GraphState):
+def respond_node(state: GraphState, config):
     if state.get("grounded"):
         answer = state["answer"]
     else:
         answer = state.get("best_answer") or state.get("first_answer") or state["answer"]
         print(f"[respond] ungrounded after cap -> returning best attempt "
               f"({state.get('best_n_issues')} issue(s))")
+    episodic.remember_turn(config["configurable"]["thread_id"], state["question"], answer)
     return {"answer": answer,
             "history": [{"role": "user", "content": state["question"]},
                         {"role": "assistant", "content": answer}]}
@@ -675,13 +704,16 @@ builder.add_node("route_intent", route_intent_node)
 builder.add_node("answer_from_history", answer_from_history_node)
 builder.add_node("plan_query", plan_query_node)
 builder.add_node("summarize", summarize_node)
+builder.add_node("recall", recall_node)
 
 builder.add_edge(START, "summarize")
 builder.add_edge("summarize", "route_intent")
 builder.add_conditional_edges("route_intent", lambda s: s["intent"], {
     "corpus": "plan_query",
     "followup": "answer_from_history",
+    "memory_recall": "recall",
 })
+builder.add_edge("recall", END)
 builder.add_edge("plan_query", "retrieve")
 builder.add_edge("answer_from_history", END)
 builder.add_edge("retrieve", "grade_relevance")
