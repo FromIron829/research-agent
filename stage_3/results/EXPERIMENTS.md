@@ -132,3 +132,61 @@ The comparison answered grounded on the first generation: pronoun resolved, only
 - **Hypotheses partly reconstructed during debugging.** The top-level design bet was committed before turn 2, but the five fix-level hypotheses were formed *as* each failure appeared — this is debugging, not pre-registered experimentation. Disclosed rather than dressed up as foresight.
 - **Keep-best fallback is untested.** `respond_node` now returns the lowest-issue draft (`best_answer`/`best_n_issues`), but the final run converged on gen-attempt-1, so the fallback path never fired. Needs a deliberately twice-failing groundedness case.
 - **The synthesis-vs-fabrication boundary is a prompt heuristic**, not a measured one — its precision/recall (does it ever wave through a real fabrication framed as "synthesis"?) is exactly what eval (c) above must quantify.
+
+---
+
+## Experiment 3 — Per-node eval of the intent router (Roadmap Phase 0.1)
+
+**Date:** 2026-06-06
+**Harness:** `stage_3/eval/eval_router.py`
+
+First experiment under the production-readiness roadmap (`ROADMAP.md`). The intent router (`route_intent_node`) is the classifier that broke in Exp 2 — a new-entity follow-up was mis-routed to `followup` and answered ungrounded from parametric knowledge. Exp 2 fixed the prompt; this experiment *validates* the fix with a labeled per-node eval (the Exp 1 discipline).
+
+### Setup
+
+- **Method: per-node, in isolation** — call `route_intent_node({"history", "question"})` on controlled inputs, compare verdict to label. No full graph, no retrieval.
+- **What makes this classifier different from Exp 1's gates:** its input includes the *conversation*. The same message ("How does it affect accuracy?") is `corpus` or `followup` depending on what history already contains. So every fixture is a **(history, message, label)** triple, with assistant history-content deliberately scoped to make labels defensible.
+- **Labeled set (n=17 scored):** A — first-turn standalone (corpus ×3); B — pure transform/recall of the prior answer (followup ×4); C — **new-entity follow-ups phrased conversationally** (corpus ×5, the Exp 2 failure class, flagged SAFETY-CRITICAL); D — same-entity *deepening* where the asked aspect is NOT in history (corpus ×3); E — same-entity but answerable from history (followup ×2). Plus 2 **taxonomy-gap** cases ("What can you do?", "Thanks!") reported but **NOT scored** — neither class fits.
+- **Safety asymmetry (the metric that matters):**
+  - **DANGEROUS = corpus→followup.** Answers from history with no retrieval → silently ungrounded. The `followup` path is `answer_from_history → END` — **no relevance/groundedness gate, no corrective net**. Drive to 0.
+  - **SAFE = followup→corpus.** Wasteful extra retrieval, but the answer is still grounded.
+- **Design payload — rows D and E are the same grammatical shape, opposite labels** ("how does it [aspect]?"), flipping only on whether history covers the aspect. This tests whether the router reasons about *information-sufficiency*, not just question form.
+
+### Hypothesis
+
+Committed before the run: after Exp 2's `ROUTE_TOOL` new-entity fix, **`DANGEROUS` is empty** — every SAFETY-CRITICAL new-entity follow-up routes to corpus; residual errors, if any, fall in `SAFE`.
+
+### Result
+
+**Run 1 — partially falsified. 16/17 (94%), DANGEROUS = 1, SAFE = 0.**
+
+- **5/5 SAFETY-CRITICAL new-entity cases passed** (GPTQ, PagedAttention, SmoothQuant, Medusa, Mamba) — the Exp 2 fix held; the main sub-claim is confirmed.
+- **1 DANGEROUS error:** *"How do these techniques reduce latency?"* (after a KV-cache history that lists techniques but no latency mechanism) → routed `followup`. Its row-D sibling *"What speedup numbers does it achieve?"* and its row-E contrast *"How does it affect accuracy?"* both routed correctly — so the miss is specifically on a same-entity-deepening question the router judged answerable from history when it wasn't.
+- (A cleanup preceded this: the 2 taxonomy-gap cases were initially double-counted — scored in `LABELED` *and* reported in `GAP_CASES`. Removed from scoring → denominator is the 17 genuinely-labeled cases.)
+
+**Fix — information-sufficiency tiebreaker.** Extended the `ROUTE_TOOL` `intent` description: for a topic already discussed, if the question asks about an aspect/detail/number/mechanism **not actually stated in the prior answer**, classify `corpus`; *when unsure whether the conversation fully covers the answer, choose corpus.*
+
+**Run 2 — 16/17 (94%), DANGEROUS = 0, SAFE = 1.** Same accuracy, but **the error relocated from the dangerous column to the safe column.** The latency case now routes `corpus`; the cost is the row-E accuracy case flipping `followup→corpus` (a safe error).
+
+### Interpretation
+
+1. **The router reasoned about entity-novelty but not information-sufficiency.** It reliably routes a *new named entity* to corpus (5/5), but a same-entity question whose answer isn't in history looked like a followup. The D/E paired contrast isolates this exactly: identical surface form, label set by history content. This is the Exp 1 "GPTQ" pattern — the single error is the boundary teaching us something, not classifier noise.
+
+2. **The tiebreaker is the fail-safe principle made concrete.** Accuracy didn't move; *safety* did. Every residual error is now recoverable (a wasteful retrieval) rather than unrecoverable (a silently ungrounded answer). Justified by the asymmetry: the `followup` path has no corrective net, so ambiguity must resolve toward the path that does.
+
+3. **The lone SAFE error is barely an error.** "How does it affect accuracy?" *is* answerable from history, but retrieving real accuracy data instead of leaning on a one-line history mention yields a grounded, likely richer answer. We pay one round-trip; we don't lose grounding.
+
+4. **Severity nuance, stated honestly:** even the original DANGEROUS miss was less harmful than Exp 2's GPTQ case, because `answer_from_history_node` is constrained to "use ONLY the conversation" — worst case is a *thin* answer, not a confident fabrication from parametric knowledge. Still worth fixing (it should retrieve), which it now does.
+
+### Decision
+
+- **Router validated** for the current fixtures: 0 dangerous errors, all errors fail-safe.
+- **Taxonomy gap logged, not patched:** "What can you do?" / "Thanks!" fit neither class. Defer to a dedicated meta/chitchat route — naturally folded into **Roadmap 0.6**, where the router becomes 3-class with `memory_recall` anyway. The harness already separates scored vs gap cases so adding a label is trivial.
+- **0.1 complete.** Next: **0.2** — eval the planner (`plan_query_node`) for sub-query correctness and history-covered-topic omission.
+
+### Known limitations
+
+- **Small n (17 scored).** Directional, not precise — especially the safe/dangerous split rests on a handful of boundary cases.
+- **Single-pass, stochastic.** The router is a forced-tool LLM call; one pass per case (matches the Exp 1 convention). A boundary case could flip run-to-run; SAFETY-CRITICAL cases should be run ×N and reported worst-case before any strong robustness claim.
+- **Labels for rows D/E are history-relative by construction.** The corpus/followup boundary for same-entity questions genuinely depends on what the prior answer contained — the fixtures encode one defensible reading, not a universal ground truth.
+- **Accuracy is the secondary metric.** The verdict is `DANGEROUS == 0`; the percentage is reported but should not be optimized in isolation (the tiebreaker proves the point — better behavior, identical accuracy).

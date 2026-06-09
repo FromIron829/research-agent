@@ -1,0 +1,91 @@
+# Production Readiness Roadmap
+
+Canonical task list for taking the Stage 3 Corrective-RAG agent from **demo-grade** to
+**production-grade**. We work this list top-to-bottom; phases are ordered by leverage and
+dependency. Check items off as they land.
+
+**How we work it:**
+- Each feature follows the project's experiment discipline: **Setup → Hypothesis → Result →
+  Interpretation → Decision**, logged in `stage_3/results/EXPERIMENTS.md`. Hypothesis committed
+  *before* the result.
+- Each decision node / classifier gets a **per-node eval** (the Exp 1 pattern) before it's
+  considered done — not just a happy-path demo.
+- Build in isolation, verify, then wire in. Commit when stable.
+
+Legend: `[ ]` todo · `[~]` in progress · `[x]` done
+
+---
+
+## Phase 0 — Close out the memory layer (current feature)
+
+The short-term memory + plan-and-execute reasoning works (Exp 2). Finish the feature with the
+rigor that is the project's differentiator, then add long-term recall.
+
+- [x] **0.1 Eval the intent router** as a classifier — labeled set incl. new-entity follow-ups
+  (the failure that started Exp 2: corpus vs followup, later vs memory_recall). Report error-type
+  split, not just accuracy. **Done (Exp 3):** `eval_router.py`, n=17 + 2 taxonomy-gap; found 1
+  dangerous miss on same-entity *deepening*, fixed with an information-sufficiency tiebreaker →
+  DANGEROUS=0, error relocated to the safe column. Taxonomy gap (meta/chitchat) deferred to 0.6.
+- [ ] **0.2 Eval the planner** (`plan_query_node`) — does it produce the right `sub_queries`, and
+  does it correctly *omit* topics already covered in history? Decomposition correctness + omission
+  precision.
+- [ ] **0.3 Comparison-grounding eval** — verify synthesis survives while fabricated specifics are
+  caught (quantify the synthesis-vs-fabrication boundary from Exp 2; does it ever wave through a
+  real fabrication framed as "synthesis"?).
+- [ ] **0.4 Adversarial keep-best test** — a deliberately twice-failing groundedness case to
+  exercise the untested `best_answer`/`best_n_issues` fallback path.
+- [ ] **0.5 History summarization** — bound growth (`MAX_TURNS=6` currently just truncates);
+  rolling summary/compaction so long sessions don't lose early context or blow the token budget.
+- [ ] **0.6 Long-term episodic memory** — conversations Chroma collection (past turns +
+  timestamp + embedding) + a `memory_recall` intent for cross-session "what did I ask last week."
+  Decisions: when-to-write, read = recency + relevance, bound growth (dedup/decay).
+
+## Phase 1 — Make it real: durable, session-aware state (Tier 1)
+
+The highest-leverage gap. Today `MemorySaver` is in-memory and `/ask` mints a throwaway thread
+id, so the memory layer **does not work deployed**.
+
+- [ ] **1.1 Durable checkpointer** — replace `MemorySaver` with a persisted backend
+  (LangGraph Postgres/Redis checkpointer); state survives restart/redeploy/crash.
+- [ ] **1.2 Session-aware API** — `/ask` honors a client-supplied (authenticated) session id
+  instead of overwriting it with a fresh uuid; conversations persist across requests.
+- [ ] **1.3 Complete the approval flow** — add the missing `/resume` endpoint; verify
+  interrupt → approve → resume works against the durable checkpointer.
+- [ ] **1.4 Stateful infra** — provision the state store in AWS; confirm the single-task
+  constraint can be relaxed once state is external.
+
+## Phase 2 — Operate it: observability, cost, resilience, latency (Tier 2)
+
+- [ ] **2.1 Observability** — replace `print()` with structured logging + tracing
+  (LangSmith or OpenTelemetry); per-node latency / token / cost capture; request correlation ids.
+- [ ] **2.2 Cost governance** — per-request token/cost budget + circuit breaker (one query fans
+  out to 6–10 LLM calls today); surface cost per request in traces.
+- [ ] **2.3 LLM-call resilience** — retry-with-backoff on Anthropic/OpenAI calls, timeout
+  handling, fallback model; a provider 429/529 must not crash the graph mid-run.
+- [ ] **2.4 Streaming + latency** — stream the final answer to the user (restore Stage 2
+  streaming); parallelize independent work (sub-query retrieval, where safe).
+
+## Phase 3 — Secure & multi-user (Tier 3)
+
+- [ ] **3.1 AuthN/Z** — user identity + auth on endpoints; rate-limit per user, not just per IP.
+- [ ] **3.2 Multi-tenancy & corpus isolation** — ingestion currently writes to ONE global
+  corpus; isolate per-user/tenant so one user's ingested paper can't pollute another's retrieval.
+- [ ] **3.3 Injection & poisoning defenses** — treat retrieved chunks and conversation history as
+  untrusted input (they're interpolated into prompts today); sanitize/segregate; validate ingested
+  content beyond the arXiv-id/title check.
+
+## Phase 4 — Quality lifecycle & scale (Tier 4)
+
+- [ ] **4.1 Online eval + feedback loop** — capture user feedback (👍/👎), sample live traffic for
+  review, monitor answer quality in prod; eval-gated CI that blocks a deploy on regression.
+- [ ] **4.2 Prompt/model versioning** — persist `prompt_version` + model id per response
+  (flagged unresolved since Stage 2); A/B framework so prompt changes are provably non-regressive.
+- [ ] **4.3 Retrieval at scale** — managed vector store (pgvector/Pinecone/Weaviate) + incremental
+  sparse index; today BM25 does a full O(n) rebuild on every ingest.
+- [ ] **4.4 Corpus lifecycle** — paper version handling (v1→v2), dedup at scale, size bounds /
+  eviction.
+
+---
+
+**Current focus:** Phase 0. Highest single-fix leverage once Phase 0 closes: **1.1–1.3**
+(durable + session-aware state) — that's what makes the memory layer actually usable in production.

@@ -310,10 +310,14 @@ ROUTE_TOOL = {
                        "followup = the question can be fully answered from the conversation above. "
                        "It summarizes, rephrases, or asks about content ALREADY in the prior assistant answer. "
                        "If the question introduces ANY entity, paper, or technique not covered in the conversation "
-                       "(even if phrased conversationally), classify as corpus."
+                       "(even if phrased conversationally), classify as corpus. "
+                       "Even for a topic ALREADY discussed, if the question asks about an aspect, detail, number, "
+                       "or mechanism that is NOT actually stated in the prior answer, classify as corpus — "
+                       "followup applies ONLY when the answer is already contained in the conversation. "
+                       "When unsure whether the conversation fully covers the answer, choose corpus."
                        },
         },
-        "required": ["intend"],
+        "required": ["intent"],
     },
 }
 
