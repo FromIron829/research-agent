@@ -190,3 +190,189 @@ Committed before the run: after Exp 2's `ROUTE_TOOL` new-entity fix, **`DANGEROU
 - **Single-pass, stochastic.** The router is a forced-tool LLM call; one pass per case (matches the Exp 1 convention). A boundary case could flip run-to-run; SAFETY-CRITICAL cases should be run ×N and reported worst-case before any strong robustness claim.
 - **Labels for rows D/E are history-relative by construction.** The corpus/followup boundary for same-entity questions genuinely depends on what the prior answer contained — the fixtures encode one defensible reading, not a universal ground truth.
 - **Accuracy is the secondary metric.** The verdict is `DANGEROUS == 0`; the percentage is reported but should not be optimized in isolation (the tiebreaker proves the point — better behavior, identical accuracy).
+
+---
+
+## Experiment 4 — Per-node eval of the query planner (Roadmap Phase 0.2)
+
+**Date:** 2026-06-06
+**Harness:** `stage_3/eval/eval_planner.py` (+ a throwaway robustness re-run on the boundary cases)
+
+The planner (`plan_query_node`) is the ReAct "Thought" step from Exp 2: it rewrites a follow-up into a standalone question and decomposes it into `sub_queries` — one per topic that needs retrieval, **omitting** topics already answered in history. This experiment validates both jobs.
+
+### Setup
+
+- **Method: per-node, in isolation** — call `plan_query_node({"history", "question"})`, inspect `sub_queries`.
+- **Why the metric is different from the router's:** the output is **structured** (a list), not a single label, and many phrasings are valid. So we don't check string equality — we measure **entity coverage**: which entities the plan will actually retrieve. Each fixture labels two sets:
+  - **`should_fetch`** — entities that MUST appear in `sub_queries`; a miss = **DANGEROUS** (never retrieved → ungrounded/incomplete).
+  - **`should_omit`** — history-covered entities that should NOT appear; presence = **WASTEFUL** (redundant re-retrieval, but grounded).
+- **Tolerant matcher:** `_hit()` normalizes case/spacing and checks a per-entity alias list ("FlashAttention" / "Flash Attention" / "flashattention"). The matcher can only false-*fail* (an alias gap), never false-pass — so a clean result can't be a matcher artifact.
+- **Set (n=9 scored + 1 gap):** A passthrough (empty history); B canonical comparison (one entity known → fetch the new, omit the known); C new-entity follow-ups; D multi-decomposition (two NEW entities → both must appear); **E over-omission traps ×3** — entity *named* in history but the needed aspect *not* present, so it must be refetched ("what speedup numbers?", "how does H2O evict?", "how do these reduce latency?"). Gap: both entities known.
+
+### Hypothesis
+
+Committed before the run: **`DANGEROUS = 0`**, and if a dangerous miss exists it will be in the **over-omission traps (E)** — the same information-sufficiency boundary that bit the router, applied to omission (mention ≠ coverage).
+
+### Result
+
+**9/9 clean, DANGEROUS = 0, WASTEFUL = 0.** Hypothesis confirmed — cleanly (contrast Exp 3, which was partially falsified).
+
+- **The three over-omission traps all passed** for the right reason: each refetched the named-but-unexplained entity (`FlashAttention speedup numbers`, `H2O ... eviction policy`, `KV cache compression ... latency`) instead of omitting it as "already discussed."
+- **Canonical case** textbook: "How does it compare to GPTQ?" → rewrite resolved *it→FlashAttention*, `sub_queries=['GPTQ quantization method']`, FA omitted.
+- **Multi-decomposition** split correctly: "GPTQ and AWQ" → two sub-queries.
+- **Robustness re-run** (the 3 traps ×3 more each, on top of the original): all **STABLE-PASS** — 4 clean samples per trap, no flips. So the clean sweep is not a single-sample fluke on the stochastic boundary cases.
+
+### Interpretation
+
+1. **The clean sweep is real, and explainable — not saturation.** A 9/9 warrants the same suspicion the Stage 2 judge earned. Two checks defuse it: the matcher can only false-fail (passes are genuine), and the planner *prompt* bakes in sufficiency — *"skip topics already explained **in detail** … only sub-queries for topics NOT yet covered."* The planner was **built** sufficiency-aware, which is exactly the property the router *lacked* and had to be patched for (Exp 3). Same principle, opposite starting point.
+
+2. **The planner never over-omits — even when baited.** The traps were designed to trick it into dropping a mentioned entity; it refetched all three. It errs toward fetching when coverage is uncertain — the fail-safe direction.
+
+3. **The GAP case flipped my framing — and strengthened the result.** I expected "both entities known → ~0 sub_queries (redundant fetch)." Instead, for *"which is more memory-efficient?"* over a thin `MULTI_HIST` (which names FA and GPTQ but says nothing about memory efficiency), the planner fetched **both** — correctly, because the *asked aspect* isn't in history. So the fixture never actually tested "fetch nothing": its history was too thin to make the entities' relevant aspect "known." That's a **fixture-design limitation, not a planner defect** — and the observed behavior is the *consistent* sufficiency logic, not over-fetching.
+
+4. **Cross-node consistency (the portfolio point):** router (Exp 3) and planner (Exp 4) both resolve ambiguity by *information-sufficiency* — does history actually contain the answer, not merely mention the topic. The router needed a tiebreaker to get there; the planner had it by construction. The agent reasons the same way at both decision points.
+
+### Decision
+
+- **Planner validated** for coverage + omission: 0 dangerous misses, 0 redundant fetches, traps stable across 4 samples.
+- **One case remains genuinely untested:** "history *fully covers* the answer → planner emits ~0 sub-queries." The current gap fixture's history is too thin to trigger it. Logged for a future rich-history fixture (also relevant once 0.5 summarization changes what history contains).
+- **0.2 complete.** Next: **0.3** — comparison-grounding eval (does synthesis survive while fabricated specifics are caught — the Exp 2 headline, now measured).
+
+### Known limitations
+
+- **Small n (9 + 9 robustness samples).** Directional; the boundary rests on a few well-chosen traps.
+- **Only the coverage dimension is scored.** Rewrite quality (pronoun resolution) and decomposition *count* (`len(sub_queries) ≥ 2` for comparisons) are observed in the logs but not asserted — a clean coverage result implies the rewrite is fine (a broken rewrite usually surfaces as a missing fetch), but they aren't independently measured.
+- **Matcher depends on a hand-maintained alias list** — a new entity with an unlisted alias would false-fail; read the printed `sub_queries` before trusting any future DANGEROUS flag.
+- **The true "fetch-nothing" omission case is not yet tested** (gap fixture too thin), so the *upper* bound of the omission optimization is unverified — only that it never *under*-fetches.
+
+---
+
+## Experiment 5 — Synthesis-vs-fabrication discrimination in the groundedness gate (Roadmap Phase 0.3)
+
+**Date:** 2026-06-06
+**Harness:** `stage_3/eval/eval_grounding_synthesis.py` (N=3 per case)
+
+Exp 2's headline was that a binary groundedness grader punishes synthesis, fixed by teaching it to flag *fabricated specifics* but spare *reasonable inference*. That was a fix, asserted on one example. This experiment **measures** the distinction adversarially.
+
+### Setup
+
+- **Isolation:** two papers (FlashAttention + GPTQ), **both "retrieved"**, so `verify_citations` never fires — this isolates the *LLM grader's* judgment, the part Exp 2 changed.
+- **5 cases, two must-spare / two must-catch / one control:**
+  - SYNTHESIS ×2 — cross-source synthesis + a reasonable inference ("complementary", "memory-centric philosophy") not verbatim in any single source → expect **grounded**.
+  - GROUNDED-SPECIFICS ×1 (control) — specific numbers that *are* in the sources → expect **grounded**.
+  - FABRICATION ×2 — a fabricated number ("4-8x at 2-bit") embedded *amid valid synthesis*, and a fabricated benchmark ("50% lower perplexity") *beside a real number* → expect **ungrounded**.
+- **Two error types:** FALSE POSITIVE (synthesis wrongly flagged — the Exp 2 regression) and FALSE NEGATIVE (fabrication passed — DANGEROUS).
+- **N=3 per case** because this boundary is the stochastic one; report per-case stability.
+
+### Hypothesis
+
+0 false positives **and** 0 false negatives. The discriminating cases (fabrication embedded in valid synthesis) are the most likely to fail — the grader could either get "distracted" by surrounding grounded content (miss the fabrication) or over-react and flag the synthesis.
+
+### Result
+
+**5/5, all stable across N=3 (15 samples). FALSE POSITIVES 0/3, FALSE NEGATIVES 0/2.** Confirmed.
+
+The two discriminating cases are the result that matters: the grader caught the fabricated number *while leaving the surrounding synthesis intact*, and caught the fabricated benchmark *sitting next to a legitimate one*. No flips across samples.
+
+### Interpretation
+
+1. **The Exp 2 distinction is real and measured, not anecdotal.** The grader separates "a specific fact/number absent from sources" from "a characterization that follows from combining sources" — and does so stably.
+2. **It isn't fooled by context.** A fabrication embedded in otherwise-grounded synthesis is still caught (no false negative), and valid synthesis sitting next to a real number isn't dragged down (no false positive). The grader evaluates claims, not vibes.
+3. **Stability matters as much as the verdict** — a single-pass 5/5 on a stochastic boundary would be weak; 15/15 makes the claim credible.
+
+### Decision
+
+- **Synthesis/fabrication boundary validated** for the current fixtures. 0.3 complete.
+- This is the third validated gate (relevance Exp 1, router Exp 3, groundedness Exp 1+5) — the agent's LLM-judge surfaces are now all measured, not assumed.
+
+### Known limitations
+
+- Hand-crafted fixtures, n=5, single corpus-pair — directional. The boundary is a prompt heuristic; subtler fabrications (e.g., a plausible-but-wrong number close to a real one) would stress it harder and tighten the precision/recall estimate.
+- All fabrications here are *specific numbers*; a fabricated *causal/mechanistic* claim with no number is a different shape not covered.
+
+---
+
+## Experiment 6 — Adversarial test of the keep-best fallback (Roadmap Phase 0.4)
+
+**Date:** 2026-06-06
+**Harness:** `stage_3/eval/test_keep_best.py`
+
+The keep-best fallback (`respond_node` returns the least-fabricated draft when groundedness regeneration is capped) shipped in Exp 2 **untested** — the verified runs all converged before the cap, so the fallback path never fired. This experiment forces it.
+
+### Setup
+
+- **Part 1 — selection logic, deterministic (no LLM):** drive `respond_node` directly across its four branches (grounded→current; ungrounded→best; ungrounded+no-best→first; ungrounded+nothing→current).
+- **Part 2 — keep-best tracking, real grader:** simulate a twice-failing loop. Draft **A** has 3 fabricated specifics, draft **B** has 1. Thread the state through `grade_groundedness_node` twice (gen1=A, gen2=B), then `respond_node`. Assert the fallback returns **B** (fewer fabrications), not A (the first draft).
+
+### Hypothesis
+
+Keep-best returns the least-fabricated draft — so the fallback yields B, not A.
+
+### Result — hypothesis FALSIFIED, bug found, fixed, re-verified.
+
+**First run: Part 1 passed 4/4; Part 2 FAILED.** Trace: `best_n_issues` was **1 after both A (3 fabs) and B (1 fab)** — identical — so `best` never updated past gen1 and the fallback returned **A, the worse first draft.**
+
+**Root cause:** `n_issues = max(1, len(issues.split("|")))`. The LLM grader returns `issues` as prose, not `|`-delimited, so the count was **1 for any ungrounded answer regardless of how many fabrications it contained.** Keep-best silently degenerated to **keep-FIRST.**
+
+**Fix:** added a structured `n_fabrications` integer to `GROUND_TOOL`; `n_issues = llm_fabrications + len(fabricated_citations)`. **Re-run: `best_n_issues` 3 → 1, B kept over A. 6/6 checks pass.** The synthesis eval (Exp 5) was re-run after the schema change — no regression (still 5/5).
+
+### Interpretation
+
+1. **This is the canonical case for why untested fallbacks are dangerous.** Keep-best *looked* implemented — the field existed, the wiring was there — but it silently did keep-first and returned the **worse** draft. End-to-end it was invisible: the user still got "an answer," just not the best one. Only an adversarial node-level test with *controlled, differing fabrication counts* could expose it.
+2. **The bug was a metric-granularity mismatch:** the keep-best decision needed a count that distinguishes 3 from 1, but the count it used could only ever be 1. The fix moved the count from a fragile string-split to a value the grader reports directly.
+3. **Test design is the lesson:** a fallback test must (a) *force* the fallback to fire and (b) make its branches *distinguishable* — here, two drafts with deliberately different fabrication counts. A test that only checked "an answer comes back" would have passed against the bug.
+
+### Decision
+
+- **Keep-best fixed and verified.** 0.4 complete. `n_fabrications` is now a cleaner issues signal available elsewhere if needed.
+- **Bug class flagged for the roadmap:** other "looks-implemented" paths (the followup answerability, the ingest error branches) deserve the same forced-path testing before being trusted.
+
+### Known limitations
+
+- Part 2 relies on the grader counting fabrications *roughly* right (A=3 vs B=1); robust because the gap is large, but two near-equal drafts could still tie `best_n_issues` and fall back to keep-first. Acceptable — ties on near-equal drafts don't matter much — but worth noting.
+- Single sample for Part 2 (the deterministic Part 1 is the stronger guarantee). The fabrication *count* is mildly stochastic even if the ordering is stable.
+
+---
+
+## Experiment 7 — Rolling history summarization (Roadmap Phase 0.5)
+
+**Date:** 2026-06-06
+**Harness:** `memory.py` unit checks + an end-to-end smoke invoke (this is a *feature*, not an eval — verified by assertions, not a labeled set).
+
+Short-term memory previously kept only the last `MAX_TURNS` turns (`format_history` truncation); everything older was **dropped**. This replaces truncation with a **rolling summary** so long sessions keep their early context compactly.
+
+### Setup
+
+- **Design:** a `summarize_node` at the graph entry (`START → summarize → route_intent`) folds turns that have fallen out of the recent window into a running `summary`; `format_history(history, summary)` prepends `summary` + the last `MAX_TURNS` turns verbatim.
+- **Incremental, not re-summarizing:** state carries `summary` + `n_summarized` (count of messages already folded). Each turn folds only `evictable[n_summarized:]` — newly-evicted turns — so no turn is summarized twice (summarization is itself an LLM call; re-folding would be wasteful).
+- **State-persistence subtlety:** `summary` and `n_summarized` are deliberately **absent from `fresh_turn`**, so the checkpointer carries them across turns (same pattern as `history`). Putting them in `fresh_turn` would wipe the summary every turn.
+
+### Hypothesis
+
+(1) Old context is preserved compactly instead of dropped; (2) folding is incremental (only newly-evicted turns); (3) the first turns are free (no eviction → no LLM call); (4) the full graph flow is unbroken through the new entry node.
+
+### Result — all four confirmed.
+
+- **`format_history`:** summary block + last-6-turns verbatim; the newest turns occupy the window and old turns do not.
+- **First fold:** with 9 turns (18 msgs) and `MAX_TURNS=6`, exactly the 6 evicted messages were summarized (`n_summarized=6`), and the oldest topics (FlashAttention, GPTQ, AWQ) appeared in the 485-char summary.
+- **Idempotent:** re-folding the same history is a no-op (no re-summarization).
+- **Incremental:** two more turns → exactly the 2 newly-evicted messages folded (`n_summarized=8`).
+- **End-to-end:** a full invoke runs `summarize → … → respond` and returns a grounded answer; `summary` is empty after turn 1 (no eviction, no wasted call).
+
+### Interpretation
+
+1. **It bounds the *context* sent to the LLM while preserving old information compressed** — which is the actual goal. Truncation bounded context too, but by *losing* the old turns; summarization keeps them. The difference shows up exactly on a follow-up that references something said many turns ago.
+2. **The `n_summarized` counter is the cost-correctness piece:** without it, every turn would re-summarize the whole evicted prefix (an LLM call each time). With it, summarization cost is paid once per evicted turn.
+3. **Short sessions pay nothing:** `summarize_node` is a no-op until history exceeds the window — verified by the empty summary and absent `[summarize]` log on turn 1.
+
+### Decision
+
+- **Summarization shipped and verified.** 0.5 complete. Phase 0 (the memory layer) is now done except **0.6** (long-term episodic memory).
+- The window size `MAX_TURNS=6` is unchanged; tuning it is a knob, not a correctness issue.
+
+### Known limitations
+
+- **History *storage* is still unbounded** — the `operator.add` reducer is append-only, so the full transcript stays in state; only the *context window* is bounded. Bounding storage (a trimming reducer / message eviction) is a separate, deferred concern.
+- **Summary *fidelity* is not evaluated.** The checks confirm the right turns are folded and topics appear, but not that a downstream node can correctly answer a follow-up whose answer now lives *only* in the summary. That's the real test of summarization quality (a "followup answered from summarized-away content" case) and is not yet built.
+- **Compounding compression loss** under many successive evictions (summary-of-summary drift) is untested.
+- Each eviction triggers one summarization LLM call (added latency on the turn that crosses the window) — acceptable, but a per-turn cost worth noting for the Phase 2 cost work.

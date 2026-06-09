@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import TypedDict
 import xml.etree.ElementTree as ET
 from typing import TypedDict, Annotated
-from memory import format_history
+from memory import format_history, summarize_history
 
 from anthropic import Anthropic
 from dotenv import load_dotenv
@@ -126,6 +126,8 @@ class GraphState(TypedDict):
     intent: str
     best_answer: str
     best_n_issues: int
+    summary: str          # running summary of turns older than the recent window (persists across turns)
+    n_summarized: int     # how many history messages have already been folded into `summary`
 
 # ---------- Paper injection ----------
 def search_arxiv(query: str, max_results: int = 1, retries: int = 2):
@@ -271,8 +273,13 @@ GROUND_TOOL = {
                     "Quote each fabricated sentence verbatim, or 'none'."
                 ),
             },
+            "n_fabrications": {
+                "type": "integer",
+                "description": "Count of DISTINCT fabricated claims you flagged above (0 if grounded). "
+                               "Used to pick the least-fabricated draft when regeneration is capped.",
+            },
         },
-        "required": ["grounded", "issues"],
+        "required": ["grounded", "issues", "n_fabrications"],
     },
 }
 
@@ -346,8 +353,18 @@ PLAN_TOOL = {
     },
 }
 
+def summarize_node(state: GraphState):
+    """Entry node: fold any turns that fell out of the recent window into the running summary,
+    so long sessions keep their early context compactly instead of truncating it away."""
+    before = state.get("n_summarized", 0)
+    summary, n = summarize_history(
+        state.get("history", []), state.get("summary", ""), before, client, MODEL)
+    if n != before:
+        print(f"[summarize] folded {n - before} message(s) -> summary now {len(summary)} chars (n_summarized={n})")
+    return {"summary": summary, "n_summarized": n}
+
 def route_intent_node(state: GraphState):
-    hist = format_history(state.get("history", []))
+    hist = format_history(state.get("history", []), state.get("summary", ""))
     msg = client.messages.create(
         model=MODEL, max_tokens=100,
         tools=[ROUTE_TOOL], tool_choice={"type": "tool", "name": "route"},
@@ -358,7 +375,7 @@ def route_intent_node(state: GraphState):
     return {"intent": intent}
 
 def plan_query_node(state: GraphState):
-    hist = format_history(state.get("history", []))
+    hist = format_history(state.get("history", []), state.get("summary", ""))
     if not hist:
         q = state["question"]
         print(f"[plan] no histroy - passthrough: {q!r}")
@@ -387,7 +404,7 @@ def plan_query_node(state: GraphState):
     return {"query": sub_queries[0], "rewritten_query": rewritten, "sub_queries": sub_queries}
 
 def answer_from_history_node(state: GraphState):
-    hist = format_history(state.get("history", []))
+    hist = format_history(state.get("history", []), state.get("summary", ""))
     msg = client.messages.create(
         model=MODEL, max_tokens=512,
         messages=[{"role": "user", "content":
@@ -400,7 +417,7 @@ def answer_from_history_node(state: GraphState):
                         {"role": "assistant", "content": answer}]}
 
 def rewrite_query_node(state: GraphState):
-    hist = format_history(state.get("history", []))
+    hist = format_history(state.get("history", []), state.get("summary", ""))
     if not hist:
         return {"query": state["question"]}
     msg = client.messages.create(
@@ -417,7 +434,7 @@ def rewrite_query_node(state: GraphState):
 def grade_relevance_node(state: GraphState):
     context = "\n\n".join(f"[{c['paper_title']} p{c['page']}] {c['text']}" for c in state["chunks"])
     question = state.get("rewritten_query") or state["question"]
-    hist = format_history(state.get("history", []))
+    hist = format_history(state.get("history", []), state.get("summary", ""))
     msg = client.messages.create(
         model=MODEL, max_tokens=300,
         tools=[GRADE_TOOL], tool_choice={"type": "tool", "name": "grade"},
@@ -441,7 +458,7 @@ def grade_relevance_node(state: GraphState):
 
 def grade_groundedness_node(state: GraphState):
     context = "\n\n".join(f"[{c['paper_title']} p{c['page']}] {c['text']}" for c in state["chunks"])
-    hist = format_history(state.get("history", []))
+    hist = format_history(state.get("history", []), state.get("summary", ""))
     msg = client.messages.create(
         model=MODEL, max_tokens=400,
         tools=[GROUND_TOOL], tool_choice={"type": "tool", "name": "groundedness"},
@@ -457,10 +474,13 @@ def grade_groundedness_node(state: GraphState):
     g = next(b.input for b in msg.content if b.type == "tool_use")
     grounded = g.get("grounded", True)
     issues = (g.get("issues") or "none").strip()
+    raw_fabs = g.get("n_fabrications", 0)
+    llm_fabs = raw_fabs if isinstance(raw_fabs, int) else 0
 
     # Guard: "not grounded" with no named issue is a false positive -> treat as grounded
     if not grounded and issues.lower() in ("", "none"):
         grounded = True
+        llm_fabs = 0
 
     # Deterministic floor: a citation to a paper that wasn't retrieved is fabricated, full stop.
     bad = verify_citations(state["answer"], state["chunks"], state.get("history", []))
@@ -471,7 +491,9 @@ def grade_groundedness_node(state: GraphState):
         print(f"[citation-check] {len(bad)} unresolved citation(s): {bad}")
 
     gen_attempts = state.get("gen_attempts", 0) + 1
-    n_issues = 0 if grounded else max(1, len([s for s in issues.split("|") if s.strip()]))
+    # Count = LLM-flagged fabrications + deterministically-caught fabricated citations. This is the
+    # keep-best signal: it must distinguish a 3-fabrication draft from a 1-fabrication one.
+    n_issues = 0 if grounded else max(1, llm_fabs + len(bad))
     print(f"[groundedness] grounded={grounded} (gen attempt {gen_attempts}) — {issues[:80]}")
 
     out = {"grounded": grounded, "issues": issues, "gen_attempts": gen_attempts}
@@ -506,7 +528,7 @@ def generate_node(state: GraphState):
                         "actually present in the sources above, or (b) remove just that one claim. "
                         "Do NOT alter any other claim. Do NOT invent citations or page numbers.")
 
-    hist = format_history(state.get("history", [])) 
+    hist = format_history(state.get("history", []), state.get("summary", "")) 
     msg = client.messages.create(
         model=MODEL,
         max_tokens=1024,
@@ -652,8 +674,10 @@ builder.add_node("ingest", ingest_node)
 builder.add_node("route_intent", route_intent_node)
 builder.add_node("answer_from_history", answer_from_history_node)
 builder.add_node("plan_query", plan_query_node)
+builder.add_node("summarize", summarize_node)
 
-builder.add_edge(START, "route_intent")
+builder.add_edge(START, "summarize")
+builder.add_edge("summarize", "route_intent")
 builder.add_conditional_edges("route_intent", lambda s: s["intent"], {
     "corpus": "plan_query",
     "followup": "answer_from_history",

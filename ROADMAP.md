@@ -26,16 +26,25 @@ rigor that is the project's differentiator, then add long-term recall.
   split, not just accuracy. **Done (Exp 3):** `eval_router.py`, n=17 + 2 taxonomy-gap; found 1
   dangerous miss on same-entity *deepening*, fixed with an information-sufficiency tiebreaker →
   DANGEROUS=0, error relocated to the safe column. Taxonomy gap (meta/chitchat) deferred to 0.6.
-- [ ] **0.2 Eval the planner** (`plan_query_node`) — does it produce the right `sub_queries`, and
+- [x] **0.2 Eval the planner** (`plan_query_node`) — does it produce the right `sub_queries`, and
   does it correctly *omit* topics already covered in history? Decomposition correctness + omission
-  precision.
-- [ ] **0.3 Comparison-grounding eval** — verify synthesis survives while fabricated specifics are
+  precision. **Done (Exp 4):** `eval_planner.py`, entity-coverage metric (should_fetch=DANGEROUS /
+  should_omit=WASTEFUL), n=9 + 1 gap; 9/9 clean, 0 dangerous, over-omission traps STABLE-PASS ×4.
+  Planner is sufficiency-aware by construction; "fetch-nothing when history fully covers" left
+  untested (gap fixture too thin).
+- [x] **0.3 Comparison-grounding eval** — verify synthesis survives while fabricated specifics are
   caught (quantify the synthesis-vs-fabrication boundary from Exp 2; does it ever wave through a
-  real fabrication framed as "synthesis"?).
-- [ ] **0.4 Adversarial keep-best test** — a deliberately twice-failing groundedness case to
-  exercise the untested `best_answer`/`best_n_issues` fallback path.
-- [ ] **0.5 History summarization** — bound growth (`MAX_TURNS=6` currently just truncates);
+  real fabrication framed as "synthesis"?). **Done (Exp 5):** `eval_grounding_synthesis.py`, 5 cases
+  ×N=3; 0 false positives (synthesis spared), 0 false negatives (fabrications caught), stable 15/15.
+- [x] **0.4 Adversarial keep-best test** — a deliberately twice-failing groundedness case to
+  exercise the untested `best_answer`/`best_n_issues` fallback path. **Done (Exp 6):** `test_keep_best.py`
+  found a real bug — keep-best silently degenerated to keep-FIRST (issue count was always 1).
+  Fixed with a structured `n_fabrications` count in GROUND_TOOL; re-verified 6/6.
+- [x] **0.5 History summarization** — bound growth (`MAX_TURNS=6` currently just truncates);
   rolling summary/compaction so long sessions don't lose early context or blow the token budget.
+  **Done (Exp 7):** `summarize_node` at graph entry + `summary`/`n_summarized` state; incremental
+  fold (no re-summarize), first turns free, end-to-end verified. (Storage still unbounded — context
+  only; summary *fidelity* eval deferred.)
 - [ ] **0.6 Long-term episodic memory** — conversations Chroma collection (past turns +
   timestamp + embedding) + a `memory_recall` intent for cross-session "what did I ask last week."
   Decisions: when-to-write, read = recency + relevance, bound growth (dedup/decay).
