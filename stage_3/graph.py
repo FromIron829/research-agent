@@ -1,4 +1,5 @@
 import re
+import os
 import sys
 import time
 import json
@@ -739,9 +740,25 @@ builder.add_conditional_edges("approval", route_after_approval, {
 })
 builder.add_edge("respond", END)
 builder.add_edge("ingest", "retrieve")
-_conn = sqlite3.connect(str(Path(__file__).resolve().parent / "checkpoints.db"),
-                        check_same_thread=False)
-graph = builder.compile(checkpointer=SqliteSaver(_conn))
+
+def _make_checkpointer():
+    db_url = os.environ.get("DATABASE_URL")
+    if db_url:
+        from psycopg import Connection
+        from psycopg.rows import dict_row
+        from langgraph.checkpoint.postgres import PostgresSaver
+        conn = Connection.connect(db_url, autocommit=True,
+                                  prepare_threshold=0, row_factory=dict_row)
+        saver = PostgresSaver(conn)
+        saver.setup()
+        print("[checkpointer] PostgresSaver")
+        return saver
+    conn = sqlite3.connect(str(Path(__file__).resolve().parent / "checkpoints.db"),
+                           check_same_thread=False)
+    print("[checkpointer] SqliteSaver (local dev)")
+    return SqliteSaver(conn)
+
+graph = builder.compile(checkpointer=_make_checkpointer())
 
 def fresh_turn(question: str):
     return {

@@ -55,10 +55,12 @@ summary, cross-session episodic — built and per-node validated.**
   Routing 7/8 (0 hijacks). Cross-session recall verified. Deferred: recency filter, per-user
   isolation, growth bounds, followup/memory_recall tiebreaker.
 
-## Phase 1 — Make it real: durable, session-aware state (Tier 1)
+## Phase 1 — Make it real: durable, session-aware state (Tier 1) ✅ COMPLETE
 
 The highest-leverage gap. Today `MemorySaver` is in-memory and `/ask` mints a throwaway thread
 id, so the memory layer **does not work deployed**.
+**Status: all four items done (Exp 9-12). Durable × session-aware × resumable × deployed —
+conversations survive server restarts AND cloud redeploys.**
 
 - [x] **1.1 Durable checkpointer** — replace `MemorySaver` with a persisted backend
   (LangGraph Postgres/Redis checkpointer); state survives restart/redeploy/crash.
@@ -75,8 +77,13 @@ id, so the memory layer **does not work deployed**.
   **Done (Exp 11):** `/resume` with a `get_state(.).next` guard (409 on no-pending/nonexistent
   threads). Headline test passed: approval parked → server killed + restarted → resumed in the
   new process. Decline-path tested (approve→ingest verified earlier); /resume auth → Phase 3.
-- [ ] **1.4 Stateful infra** — provision the state store in AWS; confirm the single-task
+- [x] **1.4 Stateful infra** — provision the state store in AWS; confirm the single-task
   constraint can be relaxed once state is external.
+  **Done (Exp 12):** RDS Postgres 16 (db.t4g.micro, Single-AZ, ~$14/mo — caught a $132/mo
+  template default), SG-to-SG networking, env-driven `_make_checkpointer` (DATABASE_URL →
+  PostgresSaver, else SqliteSaver), immutable tag stage3-v4, task-def rev 9. Cloud kill-test
+  passed: conversation survived a forced redeploy. Single-task constraint NOT relaxed —
+  Chroma/BM25 still on container disk (unblocks at 4.3). Secrets → Phase 3; rate-limit gap → 2.2.
 
 ## Phase 2 — Operate it: observability, cost, resilience, latency (Tier 2)
 

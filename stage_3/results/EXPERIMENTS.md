@@ -560,3 +560,51 @@ The ingestion approval flow was dead over HTTP: `/ask` could *return* `approval_
 - Decline-path only over HTTP (approve→ingest verified earlier, but not through `/resume`); worth one approve-path run against a sacrificial corpus when an API test suite exists.
 - No auth on `/resume`: anyone with a thread_id can approve/decline that thread's ingestion — sharper than the 1.2 session-hijack concern because this gates a *write* to the shared corpus. Phase 3 (authN/Z) must cover it.
 - Manual curl harness; still no automated API tests (flagged in Exp 10).
+
+---
+
+## Experiment 12 — Stateful deploy: RDS Postgres checkpointer on ECS (Roadmap Phase 1.4)
+
+**Date:** 2026-06-10
+**Harness:** local Docker-Postgres dress rehearsal, then the live deployment + a forced redeploy mid-conversation.
+
+Phase 1's last step: make durability hold in the deployed environment. Fargate's container disk is **ephemeral** — the SQLite checkpointer that survives restarts locally would silently reset on every deploy/task-replacement in the cloud, reintroducing exactly the failure 1.1 eliminated.
+
+### Setup
+
+- **Env-driven backend selection** (`_make_checkpointer` in graph.py): `DATABASE_URL` set → `PostgresSaver`, absent → `SqliteSaver`. Twelve-factor config: the same image runs Postgres-backed on ECS and SQLite-backed locally; the Dockerfile is untouched. Three load-bearing connection kwargs: `autocommit=True` (`.setup()` runs DDL), `row_factory=dict_row` (PostgresSaver reads columns by name), `prepare_threshold=0` (safe behind future poolers).
+- **Dress rehearsal first:** local `postgres:16` in Docker → `[checkpointer] PostgresSaver` on boot, 10 checkpoint rows visible via `psql`, kill-restart test passed. The RDS deploy then exercises the identical code path with a different hostname.
+- **Infra (user-driven console, CLI-navigated):** RDS PostgreSQL 16.9, `db.t4g.micro`, Single-AZ, 20 GB gp3, storage-autoscaling off, Performance Insights/Enhanced Monitoring off, backups 1 day, **public access No** — same VPC as the ECS task. **Cost catch:** the Dev/Test template defaulted to `db.m5.large` → a **$132/mo** estimate; switching to burstable `t4g.micro` brought it to **~$14/mo**. Read the estimate box before clicking Create.
+- **Networking:** the console wizard auto-added a useless laptop-IP inbound rule; replaced with the idiomatic **SG-to-SG rule** (5432 from the ECS task's security group only) — survives Fargate task-IP churn, exposes the DB to nothing else.
+- **Rollout:** immutable tag `stage3-v4` (the Stage 2 `:latest` digest-pinning lesson), task-def revision 9 = new image + `DATABASE_URL` env var, `update-service`.
+- **Express-gateway gotcha:** ECS Express routes by **Host header** on a shared ALB — the raw ALB DNS answers nothing; the service hostname had to be recovered from the listener rules.
+
+### Hypothesis
+
+A conversation started on the deployed service survives a **forced redeploy** (new task, new container, new disk): a follow-up on the same `thread_id` against the replacement task is answered from history.
+
+### Result — confirmed.
+
+1. Boot log of revision 9: `[checkpointer] PostgresSaver` — connect + `setup()` against RDS succeeded from Fargate.
+2. `POST /ask` "What is FlashAttention?" → grounded answer, thread_id `a41ceff9…`.
+3. `aws ecs update-service --force-new-deployment` → task `e20a…` replaced by `7712…` (verified distinct).
+4. Same thread_id, "What topic did we discuss so far?" → *"…we discussed FlashAttention, specifically covering…"* — **state survived the redeploy.**
+
+### Interpretation
+
+1. **This is the difference between restart-durable and deploy-durable.** Exp 9's SQLite survives a process restart on one host; it cannot survive Fargate replacing the host. Externalizing state to RDS is what makes "redeploy mid-conversation" a non-event — which is the operational reality of a service that ships continuously.
+2. **The dress rehearsal earned its keep:** every code-level failure mode (missing dict_row, setup DDL, connection string shape) was flushed out locally against Docker Postgres; the cloud rollout then had only *infra* unknowns (SG, template defaults, gateway routing) — and those were exactly where the surprises were.
+3. **The $132→$14 catch is the cost lesson:** template defaults are not budget-aware; the estimate box is the contract. Single-AZ micro is the right size for kilobytes of checkpoint rows.
+
+### Decision
+
+- **1.4 complete — PHASE 1 COMPLETE.** Durable (1.1) × session-aware (1.2) × resumable (1.3) × deployed (1.4). The Phase 0 memory tiers now actually work over the public API across deploys.
+- **Single-task constraint NOT yet relaxed, deliberately:** checkpointer state is external, but Chroma (episodic + ingested chunks) and the BM25 index still live on container disk — multiple tasks would diverge after an ingestion. Multi-instance unblocks at Phase 4.3 (managed vector store), not before.
+- Next: **Phase 2** (observability, cost governance, LLM-call resilience, streaming).
+
+### Known limitations
+
+- **`DATABASE_URL` is a plain env var in the task definition** (matching the pre-existing API-key pattern) — visible to anyone with ECS read access. All three credentials belong in Secrets Manager; deferred to Phase 3 with the rest of authN/Z.
+- **Episodic memory and runtime ingestion remain ephemeral on Fargate** (Chroma/BM25 on container disk, baked at image build) — cross-session recall works *within* a task's lifetime but episodic writes are lost on redeploy. Known and scoped to 4.3.
+- **No rate limiting on the stage-3 API** — the Stage 2 deployment had slowapi (5/min per IP); the stage-3 api.py never carried it over. With per-request LLM fan-out this is a cost exposure; belongs in Phase 2.2 cost governance.
+- RDS runs ~$14/mo on top of the existing stack — acceptable, but the budget alarm should be re-checked against the new baseline.
