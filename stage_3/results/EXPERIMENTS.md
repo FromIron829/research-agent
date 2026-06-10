@@ -608,3 +608,30 @@ A conversation started on the deployed service survives a **forced redeploy** (n
 - **Episodic memory and runtime ingestion remain ephemeral on Fargate** (Chroma/BM25 on container disk, baked at image build) — cross-session recall works *within* a task's lifetime but episodic writes are lost on redeploy. Known and scoped to 4.3.
 - **No rate limiting on the stage-3 API** — the Stage 2 deployment had slowapi (5/min per IP); the stage-3 api.py never carried it over. With per-request LLM fan-out this is a cost exposure; belongs in Phase 2.2 cost governance.
 - RDS runs ~$14/mo on top of the existing stack — acceptable, but the budget alarm should be re-checked against the new baseline.
+
+---
+
+## Experiment 13 — Hotfix: restore API rate limiting (Roadmap Phase 2.0)
+
+**Date:** 2026-06-10
+**Harness:** 7 rapid requests, locally and against the deployed service.
+
+Exp 12 surfaced a regression: Stage 2's deployment had slowapi rate limiting (5/min;50/day per IP); the stage-3 `api.py` never carried it over — leaving a public endpoint where each anonymous request fans out to 6-10 LLM calls. Fixed ahead of 2.1 because it's a *live cost exposure*, not new scope.
+
+### Setup
+
+Mirrored the Stage 2 pattern exactly: `Limiter(key_func=client_ip)` where `client_ip` prefers the first `X-Forwarded-For` entry (behind the ALB the TCP peer is the load balancer — without XFF every user shares one bucket), falling back to the socket address locally. `@limiter.limit("5/minute;50/day")` on **both** `/ask` and `/resume` — resume can trigger the full ingest pipeline (PDF download + embeddings), making it the most expensive route, not an afterthought. Both endpoints gain the `request: Request` parameter slowapi requires. In-memory counters remain authoritative only because the service runs a single task (min=max=1, pinned until 4.3); multi-instance will require an external store.
+
+### Result
+
+- **Local (no ALB → fallback keying):** requests 1-5 → 409 (the `/resume` guard; zero LLM cost — slowapi counts requests before the handler runs), 6-7 → **429**.
+- **Deployed (stage3-v5, task-def rev 10; XFF keying through the gateway):** identical — 5× 409, then **429**.
+
+### Decision
+
+2.0 closed. The test trick is worth keeping: hammering `/resume` with a bogus thread_id exercises the limiter at zero LLM cost because the 409 guard rejects before any model call, while slowapi still counts the request.
+
+### Known limitations
+
+- Per-IP limiting only — shared NATs share a bucket, and a determined attacker rotates IPs; real per-user quotas need Phase 3 auth.
+- In-memory counters reset on redeploy (the "50/day" is soft across deploys) and are single-task-only by construction.

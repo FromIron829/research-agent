@@ -87,6 +87,10 @@ conversations survive server restarts AND cloud redeploys.**
 
 ## Phase 2 — Operate it: observability, cost, resilience, latency (Tier 2)
 
+- [x] **2.0 Hotfix: restore rate limiting** (regression found in Exp 12 — stage-3 api.py never
+  carried over Stage 2's slowapi). **Done (Exp 13):** XFF-keyed 5/min;50/day on `/ask` AND
+  `/resume` (ingest = most expensive route); verified 429 locally and on the deployed service
+  (stage3-v5, rev 10). Per-user quotas need Phase 3 auth; external counter store needed at 4.3.
 - [ ] **2.1 Observability** — replace `print()` with structured logging + tracing
   (LangSmith or OpenTelemetry); per-node latency / token / cost capture; request correlation ids.
 - [ ] **2.2 Cost governance** — per-request token/cost budget + circuit breaker (one query fans
