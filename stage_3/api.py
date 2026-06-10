@@ -1,7 +1,7 @@
 import sys
 import uuid
 from pathlib import Path
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
@@ -35,4 +35,12 @@ def ask(req: AskRequests):
     config = {"configurable": {"thread_id": thread_id}}
     result = graph.invoke(fresh_turn(req.question), config=config)
     return _format(result, thread_id)
+
+@app.post("/resume")
+def resume(req: ResumeRequest):
+    config= {"configurable": {"thread_id": req.thread_id}}
+    if not graph.get_state(config).next:
+        raise HTTPException(status_code=409, detail="No pending approval on this thread.")
+    result = graph.invoke(Command(resume=req.decision), config=config)
+    return _format(result, req.thread_id)
 

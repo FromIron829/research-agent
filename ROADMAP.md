@@ -70,8 +70,11 @@ id, so the memory layer **does not work deployed**.
   **Done (Exp 10):** honor-or-mint thread_id (default None, returned on both branches) +
   `fresh_turn()` per-turn reset (latent stale-state bug activated by thread reuse). 4-step live
   test passed incl. conversation surviving a server restart. Auth deferred to Phase 3.
-- [ ] **1.3 Complete the approval flow** — add the missing `/resume` endpoint; verify
+- [x] **1.3 Complete the approval flow** — add the missing `/resume` endpoint; verify
   interrupt → approve → resume works against the durable checkpointer.
+  **Done (Exp 11):** `/resume` with a `get_state(.).next` guard (409 on no-pending/nonexistent
+  threads). Headline test passed: approval parked → server killed + restarted → resumed in the
+  new process. Decline-path tested (approve→ingest verified earlier); /resume auth → Phase 3.
 - [ ] **1.4 Stateful infra** — provision the state store in AWS; confirm the single-task
   constraint can be relaxed once state is external.
 

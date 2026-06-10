@@ -518,3 +518,45 @@ Three changes in `api.py`:
 
 - Manual 4-step test, single flow — no automated API test suite yet (worth adding when the API stabilizes after 1.3).
 - No session TTL/limits: any uuid continues forever; combined with unbounded checkpoint growth (Exp 9), a long-lived deployment accumulates state without bound — Phase 2 cost/ops territory.
+
+---
+
+## Experiment 11 — /resume endpoint: approval flow over HTTP, durable across restart (Roadmap Phase 1.3)
+
+**Date:** 2026-06-10
+**Harness:** live local API — interrupt parked, server killed, resumed in a new process.
+
+The ingestion approval flow was dead over HTTP: `/ask` could *return* `approval_needed` (the graph parks at `interrupt()` in `approval_node`), but no route existed to pick the thread back up — `ResumeRequest` was defined but unused. This adds `/resume` and tests the scenario Exp 9 deferred: **an approval pending across a server restart.**
+
+### Setup
+
+- **Mechanism:** `interrupt()` doesn't block a thread — it parks the full graph state in the checkpointer and returns. `graph.invoke(Command(resume=decision), config)` on the same `thread_id` reloads the checkpoint and feeds `decision` in as the return value of that `interrupt()` call; execution continues mid-node. Same pattern the REPL already used — now over HTTP, against the durable (1.1) checkpointer.
+- **Guard:** `graph.get_state(config).next` is the tuple of nodes waiting to run — non-empty when parked at an interrupt; empty for finished, idle, **or nonexistent** threads. One check → clean `409` instead of an opaque 500 for all three bad-resume cases.
+- **`_format` reused** so `/resume` and `/ask` respond symmetrically (a resume could in principle end in another interrupt).
+- **Test declines rather than approves** — deliberately: approving would ingest BERT into the live corpus as a side effect, and the approve→ingest path was already verified end-to-end (Adam in 3.3; GPTQ in Exp 2's session). 1.3's new surface is the HTTP resume mechanics + restart durability; the decline path exercises both without corpus pollution.
+
+### Hypothesis
+
+(1) An out-of-corpus question over HTTP parks at approval and returns `approval_needed` + thread_id; (2) the parked approval **survives a server restart** and `/resume` completes it in a new process; (3) `/resume` on a thread with nothing pending returns a clean 409.
+
+### Result — all confirmed.
+
+1. `POST /ask` "How does BERT's masked language modeling pretraining work?" → refine loop exhausted → LLM proposed **BERT (1810.04805)** (correct id) → `{"status": "approval_needed", "prompt": "Add 'BERT…' to the knowledge base?", "thread_id": "69479e9f…"}`.
+2. **Server killed, restarted.** `POST /resume {thread_id, "no"}` → `{"status": "done", "answer": "Declined - 'BERT…' was not added."}` — the parked interrupt was reloaded from disk and completed in a process that never saw the original request.
+3. `POST /resume` with a random uuid → **HTTP 409**, `"No pending approval on this thread."`
+
+### Interpretation
+
+1. **The two-step human-in-the-loop flow is now production-shaped:** approval state lives in the database, not in a process's memory or a held connection. Server deploys/crashes between "asked" and "approved" no longer lose the pending action — which is exactly what a redeploy mid-approval would have done under `MemorySaver`.
+2. **The `.next` guard is the API-boundary lesson:** internal graph machinery (`Command(resume=...)` on a thread with nothing to resume) fails opaquely; the boundary's job is to convert "caller misuse" into a semantic status code before the machinery sees it.
+3. Phase 1's local arc is complete: durable bytes (1.1) × stable session keys (1.2) × resumable interrupts (1.3). What remains is making the same hold in the deployed environment (1.4), where the disk itself is ephemeral.
+
+### Decision
+
+- **1.3 complete.** Next: **1.4** — stateful AWS infra: Postgres (RDS) checkpointer swap, since Fargate's disk is ephemeral and SQLite-on-container would silently reset state on every deploy — the exact failure 1.1 eliminated locally.
+
+### Known limitations
+
+- Decline-path only over HTTP (approve→ingest verified earlier, but not through `/resume`); worth one approve-path run against a sacrificial corpus when an API test suite exists.
+- No auth on `/resume`: anyone with a thread_id can approve/decline that thread's ingestion — sharper than the 1.2 session-hijack concern because this gates a *write* to the shared corpus. Phase 3 (authN/Z) must cover it.
+- Manual curl harness; still no automated API tests (flagged in Exp 10).
