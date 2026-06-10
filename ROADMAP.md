@@ -60,10 +60,16 @@ summary, cross-session episodic — built and per-node validated.**
 The highest-leverage gap. Today `MemorySaver` is in-memory and `/ask` mints a throwaway thread
 id, so the memory layer **does not work deployed**.
 
-- [ ] **1.1 Durable checkpointer** — replace `MemorySaver` with a persisted backend
+- [x] **1.1 Durable checkpointer** — replace `MemorySaver` with a persisted backend
   (LangGraph Postgres/Redis checkpointer); state survives restart/redeploy/crash.
-- [ ] **1.2 Session-aware API** — `/ask` honors a client-supplied (authenticated) session id
+  **Done (Exp 9):** `SqliteSaver` (`checkpoints.db`, `check_same_thread=False` for FastAPI threads);
+  kill-restart test passed — follow-up in a new process answered from the prior session's history.
+  Postgres deferred to 1.4 (deploy); WAL sidecars gitignored via `checkpoints.db*`.
+- [x] **1.2 Session-aware API** — `/ask` honors a client-supplied (authenticated) session id
   instead of overwriting it with a fresh uuid; conversations persist across requests.
+  **Done (Exp 10):** honor-or-mint thread_id (default None, returned on both branches) +
+  `fresh_turn()` per-turn reset (latent stale-state bug activated by thread reuse). 4-step live
+  test passed incl. conversation surviving a server restart. Auth deferred to Phase 3.
 - [ ] **1.3 Complete the approval flow** — add the missing `/resume` endpoint; verify
   interrupt → approve → resume works against the durable checkpointer.
 - [ ] **1.4 Stateful infra** — provision the state store in AWS; confirm the single-task

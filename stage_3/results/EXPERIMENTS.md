@@ -435,3 +435,86 @@ The misses were all *description* queries ("the IO-aware attention algorithm") a
 - **Unbounded growth.** Every corpus turn is stored forever; no dedup/decay.
 - **`followup`/`memory_recall` boundary** unfixed (1/8 routing miss) — needs the in-session-vs-cross-session tiebreaker.
 - **Cosine-metric gotcha** is a footgun: changing a collection's metric requires delete + re-seed.
+
+---
+
+## Experiment 9 — Durable checkpointer (Roadmap Phase 1.1)
+
+**Date:** 2026-06-10
+**Harness:** manual kill-restart test (two separate processes, same `thread_id`).
+
+First Phase 1 item. All three memory tiers (Exp 2-8) lived behind `MemorySaver` — in-process RAM — so a restart, redeploy, or crash wiped every conversation, and the deployed API could never share state across requests. This swaps the storage backend for a durable one.
+
+### Setup
+
+- **Change:** `builder.compile(checkpointer=SqliteSaver(sqlite3.connect("stage_3/checkpoints.db", check_same_thread=False)))` — replacing `MemorySaver`. No other graph code changes: the checkpointer is a pluggable interface; only where bytes land differs (RAM → file).
+- **`check_same_thread=False`** is required for the API path: FastAPI serves requests on a thread pool, and a default `sqlite3` connection refuses cross-thread use. SQLite serializes writes internally, so a single shared connection is safe here.
+- **Backend decision:** SQLite for 1.1-1.3 (zero infra, file-based), swap to `PostgresSaver` at 1.4 for deployed multi-instance state (Fargate disk is ephemeral). The swap is again one line.
+- **Housekeeping:** SQLite runs in WAL mode → `checkpoints.db-shm`/`-wal` sidecars; gitignore needs `checkpoints.db*`, not just the bare filename.
+
+### Hypothesis
+
+Graph state (history, summary, episodic-adjacent fields) survives a full process kill: a follow-up asked in a *new* process on the same `thread_id` is answered from the prior process's conversation.
+
+### Result — confirmed.
+
+Process 1: "What is FlashAttention?" → corpus path, full grounded answer. **Process killed.** Process 2 (same `thread_id="session-1"`): "Summarize that" → `[route] intent=followup` → correct summary of the prior session's FlashAttention answer, no retrieval.
+
+The routing line is the proof: the router classified "Summarize that" as followup *only because it saw non-empty history* — which in a fresh process can only have come from disk. Under `MemorySaver`, process 2 would have started blank.
+
+### Interpretation
+
+1. **The checkpointer abstraction did its job** — a one-line backend swap upgraded every Phase 0 memory feature from demo-durability to restart-durability, with zero changes to nodes, state, or wiring.
+2. **Durable state changes REPL semantics:** the hardcoded `thread_id="session-1"` now accumulates *forever across sessions* (that's what the test exploited). A "fresh conversation" now requires a fresh thread id — which is precisely the session-management concern 1.2 makes explicit and client-controlled.
+
+### Decision
+
+- **1.1 complete.** Next: **1.2** — `/ask` honors a client-supplied session id (today it mints a throwaway uuid, so the deployed API still gets nothing from this durability), then **1.3** `/resume`.
+
+### Known limitations
+
+- **Single-file SQLite:** fine for one process/host; not for multi-instance deploy (Fargate ephemeral disk) — that's the planned Postgres swap at 1.4, not a gap to fix now.
+- **Checkpoint growth is unbounded:** every thread's full state history accumulates in the file; no TTL/compaction. Revisit alongside Phase 2 cost work.
+- **Manual test, n=1 flow:** the kill-restart proof covered the followup path; interrupt/resume durability across a restart (approval pending → process dies → resume in new process) is untested until 1.3, where it's the core scenario.
+
+---
+
+## Experiment 10 — Session-aware API (Roadmap Phase 1.2)
+
+**Date:** 2026-06-10
+**Harness:** live local API (uvicorn) — 4-step curl verification including a server restart mid-conversation.
+
+The deployed `/ask` minted a fresh `uuid` per request and ignored the client's `thread_id` — so every HTTP call was a brand-new conversation and **none of the Phase 0 memory tiers worked over the API.** This makes sessions a real, client-controlled concept.
+
+### Setup
+
+Three changes in `api.py`:
+1. **Honor the client's session:** `thread_id = req.thread_id or str(uuid.uuid4())` — continue the supplied conversation, mint only when absent. Request model default changed `"web"` → `None` (the old shared default would have put every anonymous client in ONE global conversation).
+2. **Return `thread_id` on BOTH response branches** — the client can only thread its next request if it learns the id from the *first* response, not only from interrupts.
+3. **`graph.invoke(fresh_turn(...))` instead of `{"question": ...}`** — a latent bug *activated* by this feature: with throwaway uuids there was never stale state to inherit, but the moment threads are reused, turn 2 would inherit turn 1's leftover `grounded`/`attempts`/`intent`/`candidate`. The per-turn-reset lesson (Exp 2) resurfacing in the API path.
+
+### Hypothesis
+
+(1) A follow-up sent with the returned id is answered from session history; (2) the session survives a **server restart** (composing with Exp 9's durable checkpointer); (3) requests without an id get a fresh, isolated conversation.
+
+### Result — all confirmed (4-step live test).
+
+1. `POST /ask` "What is FlashAttention?" (no id) → full grounded answer, id `430a5f59…` returned.
+2. Same id, "Summarize that in one sentence" → correct one-sentence summary from history, no retrieval.
+3. **Server killed and restarted.** Same id, "What topic did we discuss so far?" → *"We discussed FlashAttention…"* — the conversation survived the process boundary.
+4. No id, "Summarize what we just discussed" → fresh id `187e2ed2…`, *"There is no previous conversation"* — sessions are isolated.
+
+### Interpretation
+
+1. **Step 3 is the composition proof:** 1.1 (durable bytes) × 1.2 (stable session key) = a conversation that outlives the server process *over HTTP*. Neither alone delivers this — that's why these were one phase.
+2. **The `fresh_turn` fix is the production lesson:** the bug was invisible under the old per-request-uuid regime and would have appeared exactly when the feature shipped. State-reset discipline must follow the state's *lifetime*, and reusing threads changed that lifetime.
+3. **Session minting is still unauthenticated** — anyone holding an id can continue that conversation. Fine for now; that's the Phase 3 authN/Z boundary, not a 1.2 gap.
+
+### Decision
+
+- **1.2 complete.** Next: **1.3** — the `/resume` endpoint (the `ResumeRequest` model exists but no route), verifying interrupt → approval → resume across the durable checkpointer, including across a restart.
+
+### Known limitations
+
+- Manual 4-step test, single flow — no automated API test suite yet (worth adding when the API stabilizes after 1.3).
+- No session TTL/limits: any uuid continues forever; combined with unbounded checkpoint growth (Exp 9), a long-lived deployment accumulates state without bound — Phase 2 cost/ops territory.

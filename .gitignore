@@ -26,3 +26,6 @@ test.py
 
 # Request cache dir
 stage_3/.arxiv_cache/
+
+# Conversation state
+stage_3/checkpoints.db*

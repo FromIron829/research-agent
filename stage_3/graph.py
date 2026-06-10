@@ -17,7 +17,8 @@ import episodic
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import MemorySaver
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import interrupt, Command
 
 import pymupdf4llm
@@ -738,7 +739,9 @@ builder.add_conditional_edges("approval", route_after_approval, {
 })
 builder.add_edge("respond", END)
 builder.add_edge("ingest", "retrieve")
-graph = builder.compile(checkpointer=MemorySaver())
+_conn = sqlite3.connect(str(Path(__file__).resolve().parent / "checkpoints.db"),
+                        check_same_thread=False)
+graph = builder.compile(checkpointer=SqliteSaver(_conn))
 
 def fresh_turn(question: str):
     return {
