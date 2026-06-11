@@ -91,8 +91,14 @@ conversations survive server restarts AND cloud redeploys.**
   carried over Stage 2's slowapi). **Done (Exp 13):** XFF-keyed 5/min;50/day on `/ask` AND
   `/resume` (ingest = most expensive route); verified 429 locally and on the deployed service
   (stage3-v5, rev 10). Per-user quotas need Phase 3 auth; external counter store needed at 4.3.
-- [ ] **2.1 Observability** — replace `print()` with structured logging + tracing
+- [x] **2.1 Observability** — replace `print()` with structured logging + tracing
   (LangSmith or OpenTelemetry); per-node latency / token / cost capture; request correlation ids.
+  **Done (Exp 14):** LangSmith — env-var graph tracing + `wrap_anthropic(client)` for the raw SDK
+  calls; dev/prod project split; verified locally (per-node tree, token splits, thread grouping)
+  and on Fargate via the API (full corpus trace: 18.6s / 27.8K tokens / $0.0907). First measured
+  cost baselines: ~$0.01 followup vs ~$0.09 corpus turn. New deploy lesson: draining old task
+  served the first verification request (RUNNING ≠ gateway switched). Embeddings unwrapped;
+  prints kept as log breadcrumbs.
 - [ ] **2.2 Cost governance** — per-request token/cost budget + circuit breaker (one query fans
   out to 6–10 LLM calls today); surface cost per request in traces.
 - [ ] **2.3 LLM-call resilience** — retry-with-backoff on Anthropic/OpenAI calls, timeout

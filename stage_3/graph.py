@@ -21,6 +21,7 @@ from langgraph.graph import StateGraph, START, END
 import sqlite3
 from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import interrupt, Command
+from langsmith.wrappers import wrap_anthropic
 
 import pymupdf4llm
 from langchain_core.documents import Document
@@ -32,7 +33,7 @@ from retrieve import _collection, _openai_client, EMBED_MODEL, embed_query
 from extract import strip_references
 
 load_dotenv()
-client = Anthropic()
+client = wrap_anthropic(Anthropic())
 MODEL = "claude-sonnet-4-6"
 MAX_ATTEMPTS = 3
 MAX_GEN = 2

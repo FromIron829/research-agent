@@ -635,3 +635,46 @@ Mirrored the Stage 2 pattern exactly: `Limiter(key_func=client_ip)` where `clien
 
 - Per-IP limiting only — shared NATs share a bucket, and a determined attacker rotates IPs; real per-user quotas need Phase 3 auth.
 - In-memory counters reset on redeploy (the "50/day" is soft across deploys) and are single-task-only by construction.
+
+---
+
+## Experiment 14 — Observability: LangSmith tracing, local + deployed (Roadmap Phase 2.1)
+
+**Date:** 2026-06-10
+**Harness:** local trace inspection (UI) + deployed verification via the LangSmith API.
+
+Until now, debugging prod meant `print()` lines lost in CloudWatch with no request boundaries. Target: for any request, see which nodes ran, per-node latency, per-call tokens/cost, and the exact prompts/responses — correlated by thread.
+
+### Setup
+
+- **Decision: LangSmith** over hand-rolled JSON→CloudWatch and OTel. Rationale: LangGraph emits traces natively (the ecosystem-standard pairing — same adoption logic as LangGraph itself), per-node latency/tokens arrive nearly free, preserving build-budget for 2.2-2.4 where the real engineering is. Accepted trade-off: prompts/answers leave AWS for LangSmith's SaaS — fine for public arXiv content, revisit if data ever becomes sensitive.
+- **Two halves:** (1) graph tracing via env vars alone (`LANGSMITH_TRACING` / `_API_KEY` / `_PROJECT`) — every node becomes a span; (2) the raw Anthropic SDK calls inside nodes are invisible to LangGraph, so `client = wrap_anthropic(Anthropic())` makes every `messages.create` a child span with model + token split. One line covers the whole graph *and* the summarizer (memory.py receives this client as a parameter — passing the client in, rather than constructing locally, paid off here).
+- **Hygiene:** `uv add langsmith` to pin the until-now transitive dependency (observability shouldn't vanish via a dep reshuffle); separate projects for dev (`research-agent-stage3`) vs deployed (`research-agent-stage3-prod`) so local noise never pollutes prod dashboards; key into the task def via the scratch-file route (env-var pattern, Secrets Manager deferred to Phase 3 with the rest).
+
+### Hypothesis
+
+One env-var activation + one wrapped client yields: per-node spans with latency, nested LLM calls with token/cost, full state snapshots, and thread-grouped traces — locally and from Fargate.
+
+### Result — confirmed, local and deployed.
+
+- **Local trace tree** (followup turn): `summarize 0.00s → route_intent 1.51s → answer_from_history 3.46s`, each LLM-calling node with a nested `ChatAnthropic claude-sonnet-4-6` span (1.7K / 931 tokens), turn total $0.0100 with input/output split; Threads view groups turns by `thread_id` (correlation requirement met with zero code). Bonus: LangSmith captures the **full GraphState in/out of every node**.
+- **Deployed** (stage3-v6, task-def rev 11): verified *programmatically* via `Client.list_runs(project_name="research-agent-stage3-prod")` — full corpus-path trace: **18.6s, 27,804 tokens, $0.0907**, all node spans present (`plan_query, retrieve, grade_relevance, generate, grade_groundedness, respond, …` + ChatAnthropic children).
+- **Deploy gotcha (new lesson):** the first verification request returned an answer but produced **no trace** — it was served by the **draining rev-10 task** (no LangSmith env), which ran alongside rev 11 for several minutes. A task showing RUNNING on the new revision ≠ the gateway has switched. Behavioral markers (the 2.0 rate-limit 429s) prove which code is serving; this deploy had none, so the stale task masqueraded as a tracing failure. Verify after drain, or stamp a version marker into responses.
+
+### Interpretation
+
+1. **First real per-request economics:** followup turn ≈ **$0.01**, corpus-path turn ≈ **$0.09 / 27.8K tokens** — a 9× spread, and the input-heavy split (74% input tokens locally) says context size, not generation, drives cost. This is precisely the baseline 2.2's budget/circuit-breaker needs; until today these numbers were guesses.
+2. **The turn is pure LLM time** (1.51 + 3.46 ≈ 5.03s; graph overhead negligible) — so 2.4's latency work must target model calls (streaming, parallel retrieval), not framework plumbing.
+3. **Two halves were both necessary:** without `wrap_anthropic`, traces show *that* `grade_relevance` took 3s but not *why* — node spans give shape, wrapped calls give substance (and all token accounting).
+
+### Decision
+
+- **2.1 complete.** Traces supersede most print-debugging; the `print()`s stay as cheap container-log breadcrumbs rather than being ripped out for a structured-logging build that LangSmith made redundant.
+- Next: **2.2 cost governance**, now with measured baselines ($0.01 followup / $0.09 corpus; 50/day rate limit caps worst-case spend at ~$4.50/day/IP — still unbounded across IPs).
+
+### Known limitations
+
+- **OpenAI embedding calls are unwrapped** (retrieval + episodic) — `wrap_openai` exists if ever needed; embeddings are pennies and rarely the problem.
+- **Traces leave AWS** (SaaS boundary, accepted above); free tier ~5k traces/mo fits current traffic with wide margin.
+- **Eval scripts and the REPL share the dev project** — fine for now; a separate `-evals` project would keep eval-run noise out if eval volume grows.
+- The verification request itself showed the **drain-window blind spot**: nothing in the response identifies which image served it. A `/health` version field would make deploy verification deterministic.
