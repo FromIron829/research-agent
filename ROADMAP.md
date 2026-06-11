@@ -125,6 +125,8 @@ progress-streaming. Deployed through stage3-v8.**
   baseline (~70% cheaper)**; meter==LangSmith invariant held (27,658 = 27,658); all eval suites
   pass. Bonus finding: CRAG ingestion had silently stale-ified an eval label (Transformer paper
   now in-corpus) — corpus-mutating agents rot static eval sets; durable fix → 4.1.
+  **Deployed as stage3-v9 (rev 14); prod verified: 16,564 cache-read tokens in the trace, turn cost
+  $0.0649 vs $0.09-0.11 baseline, meter==LangSmith holds in prod (29,355 = 29,355).**
 - [x] **2.4 Streaming + latency** — stream the final answer to the user (restore Stage 2
   streaming); parallelize independent work (sub-query retrieval, where safe).
   **Done (Exp 17):** progress-not-tokens design (groundedness gate is anti-token-streaming by
