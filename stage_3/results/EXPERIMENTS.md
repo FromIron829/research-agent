@@ -766,3 +766,46 @@ Under total provider outage: every degrade-path node returns its safe default; t
 - The 503 path **loses the turn's partial work** (tokens spent before the generate failure are gone; `fresh_turn` resets on the client's retry). Durable mid-turn resume is possible with the checkpointer but out of scope.
 - Outage simulation covers `APIConnectionError` as the representative `APIError`; per-subclass behavior (e.g., 529 overloaded vs 401 auth) is not differentiated — a 401 arguably should *not* be retried or degraded silently. Acceptable for now: auth misconfig fails every call and surfaces immediately as 503s.
 - The SDK's own retry layer is **trusted, not tested** (would need httpx-level mocking; low value relative to cost).
+
+---
+
+## Experiment 17 — Streaming + latency: SSE progress events, parallel retrieval (Roadmap Phase 2.4)
+
+**Date:** 2026-06-10
+**Harness:** timed SSE client (per-event timestamps), serial-vs-parallel retrieval diff, interrupt-through-stream.
+
+Exp 14's trace set the targets: `generate` = 13.6s of a ~27s corpus turn, and the user gets **zero feedback** until everything finishes.
+
+### Setup — the design decision IS the lesson
+
+- **The architecture is anti-token-streaming by design:** the groundedness gate grades the *complete* answer before shipping (surgical rewrite, keep-best). Streamed tokens can't be unsent — if the grader rejects a draft, the user already watched the fabrication get typed. So: **stream progress, not tokens.** Perceived latency is mostly absence-of-feedback, and for a multi-step agent the steps are meaningful UX ("retrieving → grading sources → writing → verifying"). Framing: *the architecture trades time-to-first-token for groundedness; progress streaming recovers perceived latency without unsending anything.* Token-streaming the draft (labeled unverified, via `stream_mode="custom"` + `client.messages.stream`) remains possible later.
+- **Deliverable A — `/ask/stream` (SSE):** `graph.stream(fresh_turn(...), stream_mode="updates")` yields one update per node as it completes — the graph needed **zero changes**. SSE = `data: <json>\n\n` over a held StreamingResponse, no websockets. The interrupt arrives as a pseudo-node `__interrupt__` in the stream → emitted as an `approval_needed` event; `/resume` unchanged. (`stream_mode="messages"` was rejected: it hooks LangChain model wrappers; our nodes call the raw SDK.)
+- **Deliverable B — parallel sub-query retrieval:** the serial per-sub-query loop became fetch-all-concurrently (`ThreadPoolExecutor.map`, order-preserving) + merge-sequentially. Independent read-only fetches (Chroma/BM25/embeddings); `map`'s ordering keeps dedup priority identical to serial.
+
+### Hypothesis
+
+(1) First SSE event < 1s (vs ~20-27s of silence); (2) parallel retrieval returns **identical** merged chunks, in ≈max instead of ≈sum time; (3) the approval interrupt traverses the stream and `/resume` still completes the thread.
+
+### Result — all confirmed.
+
+- **Time-to-first-feedback: 20.28s → 0.03s.** Full event timeline for a corpus question: `start +0.03s → summarize +0.07 → route_intent +1.95 → plan_query +1.95 → retrieve +2.61 → grade_relevance +7.49 → generate +18.24 → grade_groundedness +19.98 → respond/answer +20.28`. The final answer is the *graded* one.
+- **Parallel retrieval: identical chunk lists (order + content), 1.70s → 0.43s** on a 2-sub-query fetch.
+- **Interrupt through the stream:** the out-of-corpus question streamed its full corrective loop live — three grade→refine cycles visible event-by-event — then `approval_needed` (Mamba 2312.00752) arrived mid-stream; `/resume "no"` completed the parked thread. **The stream is a real-time narration of the CRAG loop** — worth keeping as a demo artifact.
+
+### Interpretation
+
+1. **Most of "latency" was feedback starvation, not wall-clock.** Total time barely moved; the experience transformed. The cheapest latency optimization was epistemically honest progress reporting, not faster generation.
+2. **Streaming cost nothing in the graph** because LangGraph node updates were already the natural progress granularity — a payoff of the graph architecture itself (a while-loop agent would have needed bespoke event plumbing).
+3. **The gate/streaming tension resolves cleanly at node granularity:** events say *what the agent is doing*; only the verified answer says *what is true*.
+
+### Decision
+
+- **2.4 complete — PHASE 2 COMPLETE** (observe, govern, survive, stream). Ship as `stage3-v8`.
+- Next: **Phase 3** (authN/Z, multi-tenancy/corpus isolation, injection defenses).
+
+### Known limitations
+
+- No token-level streaming of the answer (deliberate, documented above); the 13.6s generate hole in the event stream is visible — an intermediate "drafting…" heartbeat could soften it.
+- SSE generator runs in FastAPI's threadpool per connection; many concurrent streams = many held threads (fine at current scale + rate limits; revisit with async at scale).
+- Parallel retrieval capped at 4 workers — matches realistic sub-query counts (≤3 entities observed).
+- The non-streaming `/ask` remains the contract for programmatic clients; the two endpoints share no code path for the loop — a refactor candidate if they drift.

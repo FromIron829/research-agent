@@ -1,5 +1,6 @@
 import sys
 import uuid
+import json as _json
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -8,7 +9,7 @@ from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from typing import Optional
 import anthropic
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from graph import graph, fresh_turn
@@ -39,6 +40,9 @@ def _format(result: dict, thread_id: str):
         return {"status": "approval_needed", "prompt": intr.value["prompt"], "thread_id": thread_id}
     return {"status": "done", "answer": result["answer"], "thread_id": thread_id}
 
+def _sse(obj):
+    return f"data: {_json.dumps(obj)}\n\n"
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
@@ -64,3 +68,26 @@ def resume(request: Request, req: ResumeRequest):
 def llm_unavailable(request: Request, exc: anthropic.APIError):
     return JSONResponse(status_code=503,
                         content={"status": "error", "detail": "Model provider unavailable - please retry."})
+
+@app.post("/ask/stream")
+@limiter.limit("5/minute;50/day")
+def ask_stream(request: Request, req: AskRequests):
+    thread_id = req.thread_id or str(uuid.uuid4())
+    config = {"configurable": {"thread_id": thread_id}}
+    
+    def events():
+        yield _sse({"event": "start", "thread_id": thread_id})
+        final = {}
+        for update in graph.stream(fresh_turn(req.question), config=config,
+                                   stream_mode="updates"):
+            for node, out in update.items():
+                if node == "__interrupt__":
+                    yield _sse({"event": "approval_needed",
+                                "prompt": out[0].value["prompt"], "thread_id": thread_id})
+                    return
+                final = out or final
+                yield _sse({"event": "node", "node": node})
+        yield _sse({"event": "answer", "answer": final.get("answer", ""),
+                    "thread_id": thread_id})
+    
+    return StreamingResponse(events(), media_type="text/event-stream")

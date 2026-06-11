@@ -85,7 +85,10 @@ conversations survive server restarts AND cloud redeploys.**
   passed: conversation survived a forced redeploy. Single-task constraint NOT relaxed —
   Chroma/BM25 still on container disk (unblocks at 4.3). Secrets → Phase 3; rate-limit gap → 2.2.
 
-## Phase 2 — Operate it: observability, cost, resilience, latency (Tier 2)
+## Phase 2 — Operate it: observability, cost, resilience, latency (Tier 2) ✅ COMPLETE
+
+**Status: all five items done (Exp 13-17). Rate-limited, traced, budget-capped, outage-resilient,
+progress-streaming. Deployed through stage3-v8.**
 
 - [x] **2.0 Hotfix: restore rate limiting** (regression found in Exp 12 — stage-3 api.py never
   carried over Stage 2's slowapi). **Done (Exp 13):** XFF-keyed 5/min;50/day on `/ask` AND
@@ -115,8 +118,13 @@ conversations survive server restarts AND cloud redeploys.**
   Deferred: cross-request circuit breaker, per-subclass (401 vs 529) handling, fallback model.
   **2.2+2.3 deployed together as stage3-v7 (task-def rev 12); prod meter verified against the
   prod LangSmith trace to the token (25,308 = 25,308).**
-- [ ] **2.4 Streaming + latency** — stream the final answer to the user (restore Stage 2
+- [x] **2.4 Streaming + latency** — stream the final answer to the user (restore Stage 2
   streaming); parallelize independent work (sub-query retrieval, where safe).
+  **Done (Exp 17):** progress-not-tokens design (groundedness gate is anti-token-streaming by
+  construction — stream what the agent is DOING, ship only the verified answer). SSE `/ask/stream`
+  via `graph.stream(stream_mode="updates")`: time-to-first-feedback 20.28s → 0.03s, interrupt
+  traverses the stream as `approval_needed`. Parallel sub-query retrieval: identical chunks,
+  1.70s → 0.43s. The stream narrates the CRAG loop live (demo artifact).
 
 ## Phase 3 — Secure & multi-user (Tier 3)
 

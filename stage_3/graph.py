@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 from typing import TypedDict, Annotated
 from memory import format_history, summarize_history
 import episodic
+from concurrent.futures import ThreadPoolExecutor
 
 import anthropic
 from anthropic import Anthropic
@@ -236,18 +237,24 @@ def retrieve_node(state: GraphState):
     if not sub_queries:
         sub_queries = [state.get("query") or state["question"]]
     
-    seen = set()
-    merged = []
-    for q in sub_queries:
-        for chunk in retrieve_hybrid(q, k=10):
-            if chunk["chunk_id"] not in seen:
-                seen.add(chunk["chunk_id"])
-                merged.append(chunk)
-
+    if len(sub_queries) > 1:
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            per_query = list(ex.map(lambda q: retrieve_hybrid(q, k=10), sub_queries))
+    else:
+        per_query = [retrieve_hybrid(sub_queries[0], k=10)]
+    
+    seen, merged = set(), []
+    for chunks in per_query:
+        for c in chunks:
+            if c["chunk_id"] not in seen:
+                seen.add(c["chunk_id"])
+                merged.append(c)
+                
     aid = state.get("ingested_aid")
     if aid and not any(c["arxiv_id"] == aid for c in merged):
         boost = _retrieve_from_paper(sub_queries[0], aid, k=6)
         merged = boost + merged
+        print(f"[retrieve] boosted with {len(boost)} chunks from freshly-ingested {aid}")
 
     print(f"[retrieve] sub_queries={sub_queries} -> {len(merged)} chunks")
     return {"chunks": merged, "query": sub_queries[0]}
