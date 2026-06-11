@@ -113,6 +113,8 @@ conversations survive server restarts AND cloud redeploys.**
   deterministic citation floor during outages; generate-class raises honestly) + `APIError`→503
   at the API boundary. Forced-outage suite 10/10 — caught 2 real outage-only bugs before ship.
   Deferred: cross-request circuit breaker, per-subclass (401 vs 529) handling, fallback model.
+  **2.2+2.3 deployed together as stage3-v7 (task-def rev 12); prod meter verified against the
+  prod LangSmith trace to the token (25,308 = 25,308).**
 - [ ] **2.4 Streaming + latency** — stream the final answer to the user (restore Stage 2
   streaming); parallelize independent work (sub-query retrieval, where safe).
 
