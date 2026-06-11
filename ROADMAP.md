@@ -137,7 +137,12 @@ progress-streaming. Deployed through stage3-v8.**
 
 ## Phase 3 — Secure & multi-user (Tier 3)
 
-- [ ] **3.1 AuthN/Z** — user identity + auth on endpoints; rate-limit per user, not just per IP.
+- [x] **3.1 AuthN/Z** — user identity + auth on endpoints; rate-limit per user, not just per IP.
+  **Done (Exp 19):** API keys (SHA-256 at rest, Postgres/SQLite dual backend), ADMIN_KEY bootstrap +
+  /admin/keys minting, thread ownership claimed-at-mint / checked-on-continuation-and-resume
+  (poisoning + hijack closed), limiter re-keyed per identity. Authz suite 12/12; deployed
+  stage3-v11 (rev 16), prod gates verified, guest key minted. Key id = tenant id for 3.2.
+  Deferred: per-key budgets, revocation endpoint, key expiry.
 - [ ] **3.2 Multi-tenancy & corpus isolation** — ingestion currently writes to ONE global
   corpus; isolate per-user/tenant so one user's ingested paper can't pollute another's retrieval.
 - [ ] **3.3 Injection & poisoning defenses** — treat retrieved chunks and conversation history as

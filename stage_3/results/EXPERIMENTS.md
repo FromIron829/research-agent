@@ -858,3 +858,80 @@ The first regression run reported a **dangerous-looking miss**: the relevance ga
 - A refine loop's re-retrieval legitimately rewrites the cache (new sources = new prefix — a real change, not a miss).
 - route/plan/summarize stay uncached by choice (small, no sources, pre-retrieval); episodic/OpenAI embedding calls unmetered as before.
 - The budget now counts cache-read tokens at face value — a cache-heavy turn "spends" budget faster than its dollar cost; acceptable while the budget's job is bounding work volume.
+
+
+---
+
+## Experiment 19 — AuthN/Z: API keys, thread ownership, per-identity limits (Roadmap Phase 3.1)
+
+**Date:** 2026-06-11
+**Harness:** forced-path authz suite (12 checks, local) + prod gate verification.
+
+Threat model (all self-found across earlier phases, sharpened by the public UI): **/resume let anyone
+holding a thread_id approve writes into the shared corpus** (poisoning); thread_ids were bearer
+capabilities (session hijack — possession == authorization, no revocation); spend was anonymous;
+per-IP limits punish shared NATs and fall to IP rotation.
+
+### Setup
+
+- **One primitive fixes all four: API keys with stored identity.** `auth.py`: `api_keys` holds
+  **SHA-256 hashes only** (a DB leak must not leak credentials; no KDF needed — keys are 192-bit
+  random, not human-chosen) + `thread_owners` (thread → minting key). Same dual backend as the
+  checkpointer (DATABASE_URL → Postgres, else local SQLite), one `?`→`%s` paramstyle shim.
+- **Bootstrap problem:** prod RDS is private — how does the first key get in? `ADMIN_KEY` env →
+  inserted at startup if missing; `/admin/keys` (admin-only) mints further keys in prod. Admin key
+  generated to a local file, never in chat or git.
+- **Enforcement:** `require_key` FastAPI dependency (401 missing / 403 invalid — the
+  authenticate-vs-forbidden distinction) on `/ask`, `/ask/stream`, `/resume`. Ownership claimed at
+  thread mint, checked on every continuation **and on /resume, before the pending-state check** —
+  strangers learn nothing about a thread, not even whether an approval is parked. Rate limiter
+  re-keyed on the hashed API key (per-identity buckets; IP fallback pre-auth). `/health` + `/` open.
+- **UI:** key prompt once (localStorage), `X-API-Key` on every call, re-prompt on 401/403.
+- **Access model decision:** auth everywhere + a rotatable guest key (one shared identity for
+  demo visitors — shared rate bucket and, in 3.2, one shared overlay; named keys mintable per
+  recruiter). Key id becomes **tenant id** in 3.2 — identity is the prerequisite for "your own corpus."
+
+### Hypothesis
+
+Every unauthorized path returns the right semantic status without leaking information or burning
+LLM tokens; owner flows are unchanged; rate buckets are per-key (two keys on one IP independent).
+
+### Result — 12/12 (one test-arithmetic correction), prod gates verified.
+
+- Keyless → 401; garbage key → 403; keyless `/resume` → 401. Non-admin mint → 403.
+- **Key B continuing key A's thread → 403; B resuming A's thread → 403 (the poisoning hole, closed).**
+  Unknown thread → 404. Owner ask/resume flows intact (409 on nothing-parked preserved).
+- Per-key buckets: B burning its budget on cheap 403s hit 429 exactly on its 5th request
+  (the suite's expected array had miscounted B's earlier spend — the limiter was right, the test
+  expectation wrong); A on the same IP was completely unaffected.
+- All denial paths are pre-LLM — an attacker probing costs ~nothing.
+- **Prod (stage3-v11, rev 16):** page 200 (open), keyless 401, garbage 403, guest key minted via
+  the admin endpoint against RDS, guest ask answered. Auth state lives in the same durable Postgres.
+
+### Interpretation
+
+1. **Identity is the keystone primitive:** the same key id that gates entry also owns threads, keys
+   the rate limiter, and becomes the 3.2 tenant — four security properties from one table.
+2. **The review pattern earned it again:** the first typed version protected /ask and /admin but left
+   `/resume` — the exact endpoint the item exists for — unprotected, plus a missing `Depends` import
+   that would have crashed at boot. Auth covering 3 of 4 endpoints is a fence with a gate missing;
+   the forced-path suite is designed to catch precisely this class.
+3. **Bearer-token lesson:** thread_ids looked safe ("unguessable uuids") but unguessable ≠ revocable
+   ≠ authorized. Capability tokens leak through logs and URLs; ownership checks turn possession back
+   into mere possession.
+
+### Decision
+
+- **3.1 complete.** Deployed as stage3-v11 (rev 16). Guest key minted and rotatable;
+  README can carry it. Next: **Secrets Manager migration** (ADMIN_KEY now joins 4 other plain
+  env secrets — the irony is noted), then **3.2 multi-tenancy** (key id → per-tenant overlay
+  corpus + episodic filtering).
+
+### Known limitations
+
+- Keys are not scoped/expiring (no per-key budgets yet — the 2.2 deferred item now HAS its
+  identity hook; wire per-key daily token budgets when quotas matter).
+- `/admin/keys` has no rate limit (admin-gated; fine) and no key-revocation endpoint yet
+  (revocation = DELETE row; add an endpoint when first needed).
+- Guest key = one shared identity: shared bucket, shared future overlay, no inter-guest walls.
+- ADMIN_KEY and all other secrets remain plain task-def env vars — next item.
