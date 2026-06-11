@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Research Agent — Corrective RAG</title>
+<style>
+  :root { --fg:#1a1d23; --muted:#6b7280; --line:#e5e7eb; --accent:#0f62fe; --ok:#16a34a; --warn:#b45309; --bg:#fafafa; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 32px 20px 80px; }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: .9rem; margin-bottom: 24px; }
+  .askbar { display:flex; gap:8px; }
+  .askbar input { flex:1; padding:12px 14px; font-size:1rem; border:1px solid var(--line);
+                  border-radius:10px; background:#fff; }
+  .askbar button { padding:12px 18px; font-size:1rem; border:0; border-radius:10px;
+                   background:var(--accent); color:#fff; cursor:pointer; }
+  .askbar button:disabled { background:#9db8f6; cursor:default; }
+  .meta { display:flex; justify-content:space-between; align-items:center; margin:10px 2px 0;
+          font-size:.8rem; color:var(--muted); }
+  .meta a { color:var(--muted); cursor:pointer; text-decoration:underline; }
+  #timeline { margin:24px 0 0; padding:0; list-style:none; }
+  #timeline li { display:flex; gap:10px; align-items:baseline; padding:7px 4px;
+                 border-bottom:1px dashed var(--line); font-size:.92rem; }
+  #timeline .tick { color:var(--ok); }
+  #timeline .t { margin-left:auto; color:var(--muted); font-size:.78rem; font-variant-numeric:tabular-nums; }
+  #timeline li.pending .tick { color:var(--accent); }
+  @keyframes pulse { 50% { opacity:.35; } }
+  li.pending { animation: pulse 1.2s infinite; }
+  #approval { display:none; margin-top:20px; padding:16px; border:1px solid var(--warn);
+              border-radius:10px; background:#fffbeb; }
+  #approval .q { font-weight:600; margin-bottom:10px; }
+  #approval button { margin-right:8px; padding:8px 16px; border-radius:8px; border:1px solid var(--line);
+                     cursor:pointer; background:#fff; }
+  #approval button.yes { background:var(--ok); color:#fff; border:0; }
+  #answer { display:none; margin-top:24px; padding:20px 22px; background:#fff; border:1px solid var(--line);
+            border-radius:12px; line-height:1.55; font-size:.95rem; overflow-wrap:break-word; }
+  #answer h2 { font-size:1.1rem; } #answer h3 { font-size:1rem; }
+  #answer code { background:#f3f4f6; padding:1px 5px; border-radius:4px; font-size:.85em; }
+  #error { display:none; margin-top:20px; padding:14px 16px; border-radius:10px;
+           background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; font-size:.9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Research Agent</h1>
+  <div class="sub">Corrective RAG over 77+ papers on efficient LLM inference — watch the graph think.</div>
+
+  <div class="askbar">
+    <input id="q" placeholder="e.g. How does FlashAttention reduce memory I/O?" autofocus>
+    <button id="ask">Ask</button>
+  </div>
+  <div class="meta">
+    <span id="session">new conversation</span>
+    <a id="reset">new conversation</a>
+  </div>
+
+  <ul id="timeline"></ul>
+
+  <div id="approval">
+    <div class="q" id="approval-q"></div>
+    <button class="yes" id="approve">Approve ingestion</button>
+    <button id="decline">Decline</button>
+  </div>
+
+  <div id="answer"></div>
+  <div id="error"></div>
+</div>
+
+<script>
+const LABELS = {
+  summarize:           "Checked conversation memory",
+  route_intent:        "Classified intent",
+  plan_query:          "Planned retrieval (resolved references, split sub-queries)",
+  retrieve:            "Retrieved sources from the corpus",
+  grade_relevance:     "Graded source relevance",
+  refine_query:        "Refined the search query — retrying retrieval",
+  generate:            "Drafted an answer from the sources",
+  grade_groundedness:  "Verified groundedness (fabrication check)",
+  respond:             "Finalized the verified answer",
+  answer_from_history: "Answered from conversation memory (no retrieval needed)",
+  recall:              "Recalled past conversations",
+  propose_ingestion:   "Sources insufficient — proposed adding a paper",
+  approval:            "Processed your approval decision",
+  ingest:              "Ingested the new paper into the corpus",
+};
+
+let threadId = sessionStorage.getItem("thread_id") || null;
+let t0 = 0;
+
+const $ = id => document.getElementById(id);
+const show = (id, on) => $(id).style.display = on ? "block" : "none";
+
+function setSession() {
+  $("session").textContent = threadId ? `session ${threadId.slice(0,8)}… (follow-ups remembered)` : "new conversation";
+}
+setSession();
+
+$("reset").onclick = () => { threadId = null; sessionStorage.removeItem("thread_id"); setSession(); };
+
+function step(text, done=true) {
+  const li = document.createElement("li");
+  li.innerHTML = `<span class="tick">${done ? "✓" : "●"}</span><span>${text}</span>` +
+                 `<span class="t">${((performance.now()-t0)/1000).toFixed(1)}s</span>`;
+  if (!done) { li.classList.add("pending"); li.id = "pending"; }
+  $("timeline").appendChild(li);
+}
+function settlePending(text) {
+  const p = $("pending");
+  if (p) p.remove();
+  if (text !== undefined) step(text);
+}
+
+// minimal, escape-first markdown: headers / bold / inline code / paragraphs
+function md(s) {
+  s = s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  s = s.replace(/^### (.*)$/gm,"<h3>$1</h3>").replace(/^## (.*)$/gm,"<h2>$1</h2>").replace(/^# (.*)$/gm,"<h2>$1</h2>");
+  s = s.replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>").replace(/`([^`]+)`/g,"<code>$1</code>");
+  s = s.replace(/^- (.*)$/gm,"&bull; $1");
+  return s.split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g,"<br>")}</p>`).join("");
+}
+
+function fail(msg) { $("error").textContent = msg; show("error", true); settlePending(); $("ask").disabled = false; }
+
+async function ask() {
+  const question = $("q").value.trim();
+  if (!question) return;
+  $("ask").disabled = true;
+  $("timeline").innerHTML = ""; show("answer", false); show("error", false); show("approval", false);
+  t0 = performance.now();
+  step("Working…", false);
+
+  let res;
+  try {
+    res = await fetch("/ask/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, thread_id: threadId }),
+    });
+  } catch (e) { return fail("Network error — is the service up?"); }
+  if (!res.ok) return fail(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 2);
+      if (!line.startsWith("data: ")) continue;
+      handle(JSON.parse(line.slice(6)));
+    }
+  }
+  settlePending();
+  $("ask").disabled = false;
+}
+
+function handle(e) {
+  if (e.event === "start") {
+    threadId = e.thread_id; sessionStorage.setItem("thread_id", threadId); setSession();
+  } else if (e.event === "node") {
+    settlePending(LABELS[e.node] || e.node);
+    step("Working…", false);
+  } else if (e.event === "answer") {
+    settlePending();
+    $("answer").innerHTML = md(e.answer || "(empty answer)");
+    show("answer", true);
+  } else if (e.event === "approval_needed") {
+    settlePending("Sources insufficient — the agent wants to add a paper to the corpus");
+    $("approval-q").textContent = e.prompt;
+    show("approval", true);
+  }
+}
+
+async function resume(decision) {
+  show("approval", false);
+  $("ask").disabled = true;
+  t0 = performance.now();
+  step(decision === "yes" ? "Approved — downloading, chunking, embedding, re-retrieving…" : "Declined", false);
+  try {
+    const res = await fetch("/resume", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ thread_id: threadId, decision }),
+    });
+    const data = await res.json();
+    if (!res.ok) return fail(data.detail || `HTTP ${res.status}`);
+    settlePending(decision === "yes" ? "Paper ingested — answer regenerated from the new sources" : "Ingestion declined");
+    $("answer").innerHTML = md(data.answer || "");
+    show("answer", true);
+  } catch (e) { return fail("Network error during resume."); }
+  $("ask").disabled = false;
+}
+
+$("ask").onclick = ask;
+$("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
+$("approve").onclick = () => resume("yes");
+$("decline").onclick = () => resume("no");
+</script>
+</body>
+</html>

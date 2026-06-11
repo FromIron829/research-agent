@@ -9,11 +9,13 @@ from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from typing import Optional
 import anthropic
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from graph import graph, fresh_turn
 from langgraph.types import Command
+
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 def client_ip(request: Request):
     xff = request.headers.get("x-forwarded-for")
@@ -46,6 +48,10 @@ def _sse(obj):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/")
+def index():
+    return FileResponse(STATIC_DIR / "index.html")
 
 @app.post("/ask")
 @limiter.limit("5/minute;50/day")
