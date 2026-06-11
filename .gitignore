@@ -29,3 +29,5 @@ stage_3/.arxiv_cache/
 
 # Conversation state
 stage_3/checkpoints.db*
+# Auth store (local dev)
+stage_3/auth.db*

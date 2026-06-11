@@ -54,7 +54,7 @@
   </div>
   <div class="meta">
     <span id="session">new conversation</span>
-    <a id="reset">new conversation</a>
+    <span><a id="changekey">change key</a> &middot; <a id="reset">new conversation</a></span>
   </div>
 
   <ul id="timeline"></ul>
@@ -90,6 +90,19 @@ const LABELS = {
 let threadId = sessionStorage.getItem("thread_id") || null;
 let t0 = 0;
 
+function getKey(forceAsk=false) {
+  let k = localStorage.getItem("api_key");
+  if (!k || forceAsk) {
+    k = (prompt("Enter your API key (ra_...):", k || "") || "").trim();
+    if (k) localStorage.setItem("api_key", k);
+  }
+  return k;
+}
+function authFailed(status) {
+  localStorage.removeItem("api_key");
+  fail(status === 401 ? "API key required - click Ask to enter one." : "Key rejected - click Ask to retry.");
+}
+
 const $ = id => document.getElementById(id);
 const show = (id, on) => $(id).style.display = on ? "block" : "none";
 
@@ -99,6 +112,7 @@ function setSession() {
 setSession();
 
 $("reset").onclick = () => { threadId = null; sessionStorage.removeItem("thread_id"); setSession(); };
+$("changekey").onclick = () => getKey(true);
 
 function step(text, done=true) {
   const li = document.createElement("li");
@@ -127,6 +141,8 @@ function fail(msg) { $("error").textContent = msg; show("error", true); settlePe
 async function ask() {
   const question = $("q").value.trim();
   if (!question) return;
+  const key = getKey();
+  if (!key) return;
   $("ask").disabled = true;
   $("timeline").innerHTML = ""; show("answer", false); show("error", false); show("approval", false);
   t0 = performance.now();
@@ -136,10 +152,11 @@ async function ask() {
   try {
     res = await fetch("/ask/stream", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-API-Key": key },
       body: JSON.stringify({ question, thread_id: threadId }),
     });
   } catch (e) { return fail("Network error — is the service up?"); }
+  if (res.status === 401 || res.status === 403) { $("ask").disabled = false; return authFailed(res.status); }
   if (!res.ok) return fail(`HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
 
   const reader = res.body.getReader();
@@ -185,10 +202,11 @@ async function resume(decision) {
   try {
     const res = await fetch("/resume", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-API-Key": getKey() },
       body: JSON.stringify({ thread_id: threadId, decision }),
     });
     const data = await res.json();
+    if (res.status === 401 || res.status === 403) { $("ask").disabled = false; return authFailed(res.status); }
     if (!res.ok) return fail(data.detail || `HTTP ${res.status}`);
     settlePending(decision === "yes" ? "Paper ingested — answer regenerated from the new sources" : "Ingestion declined");
     $("answer").innerHTML = md(data.answer || "");
