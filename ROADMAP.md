@@ -143,6 +143,11 @@ progress-streaming. Deployed through stage3-v8.**
   (poisoning + hijack closed), limiter re-keyed per identity. Authz suite 12/12; deployed
   stage3-v11 (rev 16), prod gates verified, guest key minted. Key id = tenant id for 3.2.
   Deferred: per-key budgets, revocation endpoint, key expiry.
+- [x] **3.x Secrets migration** — all five runtime secrets (incl. ADMIN_KEY) moved from plain
+  task-def env to ONE Secrets Manager secret (JSON keys, $0.40/mo) with execution-role
+  GetSecretValue; rev 17 verified. **(Exp 20)** — whose prod verification also caught a latent
+  empty-regen bug from the 2.5 refactor (draft-blind regen prompt + tool-pull empty turn + gate
+  passing empty answers); fixed + forced-regen suite 5/5; deployed stage3-v12 (rev 18).
 - [ ] **3.2 Multi-tenancy & corpus isolation** — ingestion currently writes to ONE global
   corpus; isolate per-user/tenant so one user's ingested paper can't pollute another's retrieval.
 - [ ] **3.3 Injection & poisoning defenses** — treat retrieved chunks and conversation history as

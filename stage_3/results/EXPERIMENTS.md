@@ -935,3 +935,75 @@ LLM tokens; owner flows are unchanged; rate buckets are per-key (two keys on one
   (revocation = DELETE row; add an endpoint when first needed).
 - Guest key = one shared identity: shared bucket, shared future overlay, no inter-guest walls.
 - ADMIN_KEY and all other secrets remain plain task-def env vars — next item.
+
+
+---
+
+## Experiment 20 — Secrets Manager migration + the empty-regen bug it surfaced (Roadmap Phase 3.x)
+
+**Date:** 2026-06-11
+**Harness:** rev-17 secret-loading verification in prod; then a forced-regen test suite for the bug found during it.
+
+### Part 1 — Secrets out of plain env
+
+Five secrets sat as plaintext in the ECS task definition (visible to anyone with ECS read):
+ANTHROPIC_API_KEY, OPENAI_API_KEY, DATABASE_URL, LANGSMITH_API_KEY, and the freshly-added ADMIN_KEY.
+Migration: ONE Secrets Manager secret (`research-agent/env`, JSON keys — $0.40/mo vs $2 for five),
+`secretsmanager:GetSecretValue` granted to the task execution role, task-def rev 17 swaps the five
+`environment` entries for `secrets`/`valueFrom` (`<arn>:<json-key>::`). Values moved task-def→secret
+without transiting chat or disk (beyond an immediately-deleted scratch file). Non-secrets
+(LANGSMITH_PROJECT/TRACING) stay as plain env. **Verified on rev 17:** keyless 401 (DATABASE_URL →
+auth tables), admin mint 200 (ADMIN_KEY), guest ask answered (ANTHROPIC/OPENAI keys).
+
+### Part 2 — the verification caught a real production bug (unrelated to secrets)
+
+The rev-17 guest ask returned `status: done` with an **empty answer**. Trace forensics: generate #1
+produced 861 tokens; groundedness flagged a claim; **regenerate produced 9 tokens — zero content
+blocks, `stop_reason: end_turn`**; the groundedness gate then **passed the empty draft** (nothing to
+flag = grounded) and shipped ''.
+
+Root causes (both latent since the 2.5 caching refactor — whose verification ran happy-path turns
+only; the regen path shipped unexercised. The forced-path lesson, this time against its own author):
+1. **The regen prompt never showed the model its previous draft** — "remove just that one claim"
+   against an invisible draft. (True pre-2.5 as well, but the old single-blob prompt happened to
+   regenerate from scratch instead of emitting nothing.)
+2. **Tool-pull empty turn:** "a reviewer flagged these claims" pattern-matches the CHECK GROUNDEDNESS
+   instruction in CORE_SYSTEM; the model reaches for the groundedness tool, `tool_choice: none`
+   forbids it, and it ends the turn with no content at all.
+3. **The gate had no empty-answer guard** — an empty draft is unfalsifiable, so the LLM grader
+   waves it through.
+
+Fixes (all in the volatile tail or pre-LLM — the cache prefix is untouched, re-proven byte-identical):
+draft included in the regen tail + explicit "this is an ANSWER task, plain prose, no tools"
+disambiguation + a one-shot plain-prose retry if output is still empty + a deterministic
+empty-draft guard in grade_groundedness (fails it without an LLM call; an empty draft can never
+become keep-best).
+
+**Forced-regen suite 5/5:** empty guard fires (no LLM), empty never stored as best, regen now
+produces a full corrected answer (1,510 chars) with the planted fabrication removed and substance
+kept. Cache proof re-passed (write 7,945 → read ×2). **Prod (stage3-v12, rev 18): the exact failing
+question returns 3,193 chars.**
+
+### Interpretation
+
+1. **Unverifiable-vacuous-pass is a grader failure class of its own:** a gate that asks "can you
+   quote a problem?" passes the empty string by construction. Guards for degenerate inputs must be
+   deterministic and sit BEFORE the LLM judge.
+2. **Multi-purpose prompts create tool-pull hazards:** once CORE_SYSTEM describes three tasks, any
+   tail that *smells* like a forbidden task can wedge the model against `tool_choice`. Disambiguate
+   in the tail; keep the shared prefix byte-stable.
+3. **Every verification is a chance to catch an unrelated bug** — the secrets check did nothing to
+   cause this, but being in the habit of *asking a real question and reading the answer* after every
+   deploy is what surfaced it. Output-length checks now belong in deploy verification.
+
+### Decision
+
+- Secrets migration complete (rev 17); regen fixes deployed (stage3-v12, rev 18). Remaining in
+  Phase 3: **3.2 multi-tenancy**, **3.3 injection defenses**.
+
+### Known limitations
+
+- Secret rotation is manual (update-secret + force redeploy); no automatic rotation lambda.
+- The tool-pull fix is prompt-level; the structural alternative (separate cached prefixes per task
+  family) would cost cache sharing — revisit only if empty turns recur (the retry + guard now make
+  that recoverable anyway).

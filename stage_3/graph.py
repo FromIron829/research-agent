@@ -542,6 +542,13 @@ def grade_relevance_node(state: GraphState):
             "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
 
 def grade_groundedness_node(state: GraphState):
+    # Guard: an empty draft has nothing to flag, so the LLM grader would wave it through.
+    # Empty is NOT grounded — fail it (no LLM call) so the loop regenerates or keep-best recovers.
+    if not state.get("answer", "").strip():
+        print("[groundedness] EMPTY draft -> not grounded (guard, no LLM call)")
+        return {"grounded": False, "issues": "empty answer",
+                "gen_attempts": state.get("gen_attempts", 0) + 1}
+
     context = "\n\n".join(f"[{c['paper_title']} p{c['page']}] {c['text']}" for c in state["chunks"])
     hist = format_history(state.get("history", []), state.get("summary", ""))
     try:
@@ -613,12 +620,19 @@ def refine_query_node(state: GraphState):
 
 # ---------- Result generation ----------
 def generate_node(state: GraphState):
+    # Regeneration must SHOW the model its previous draft — "remove just that claim" is
+    # meaningless against an invisible draft (the empty-regen bug caught in prod, Exp 20).
     fix = ""
-    if state.get("issues") and state["issues"].lower() != "none":
-        fix = (f"\n\nA reviewer flagged these claims as possibly unsupported: {state['issues']}\n"
-                        "For EACH flagged claim, do exactly one of: (a) keep it and add a citation that is "
-                        "actually present in the sources above, or (b) remove just that one claim. "
-                        "Do NOT alter any other claim. Do NOT invent citations or page numbers.")
+    if state.get("issues") and state["issues"].lower() != "none" and state.get("answer", "").strip():
+        # "reviewer flagged claims" pattern-matches the groundedness instruction in CORE_SYSTEM;
+        # with tool_choice=none the model may reach for the forbidden tool and emit an EMPTY turn
+        # (Exp 20). Disambiguate explicitly: this is an ANSWER task, plain prose.
+        fix = (f"\n\nYour previous draft:\n{state['answer']}\n\n"
+               f"A reviewer flagged these claims as possibly unsupported: {state['issues']}\n"
+               "This is an ANSWER task, not a grading task - respond in plain prose, no tools. "
+               "Rewrite the draft: for EACH flagged claim, either keep it with a citation that is "
+               "actually present in the sources, or remove just that one claim. Do NOT alter any "
+               "other claim. Do NOT invent citations or page numbers. Output the FULL corrected answer.")
 
     msg = client.messages.create(
         model=MODEL,
@@ -628,8 +642,21 @@ def generate_node(state: GraphState):
         messages=[{"role": "user", "content": f"Answer the question now.{fix}"}],
     )
     answer = "".join(b.text for b in msg.content if b.type == "text")
+    spent = _usage(msg)
+    if not answer.strip():
+        # Insurance: one explicit plain-text retry (cache prefix unchanged -> cheap read)
+        print("[generate] empty output -> one plain-prose retry")
+        msg = client.messages.create(
+            model=MODEL, max_tokens=1024,
+            tools=COMMON_TOOLS, tool_choice={"type": "none"},
+            system=_cache_context(state),
+            messages=[{"role": "user", "content":
+                       f"Answer the question now, in plain prose only (no tools).{fix}"}],
+        )
+        answer = "".join(b.text for b in msg.content if b.type == "text")
+        spent += _usage(msg)
     out = {"answer": answer,
-                           "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
+                           "tokens_used": state.get("tokens_used", 0) + spent}
     if not state.get("first_answer"):
         out["first_answer"] = answer
     return out
