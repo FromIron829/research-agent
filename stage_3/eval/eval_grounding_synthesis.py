@@ -61,7 +61,8 @@ def run():
     for ans, expected, cat, label in CASES:
         verdicts = []
         for _ in range(N):
-            g = grade_groundedness_node({"answer": ans, "chunks": CHUNKS, "history": []})["grounded"]
+            g = grade_groundedness_node({"answer": ans, "chunks": CHUNKS, "history": [],
+                                         "question": "How do FlashAttention and GPTQ compare?"})["grounded"]
             verdicts.append(g)
         majority = sum(verdicts) >= (N / 2)        # majority-grounded
         stable = "stable" if len(set(verdicts)) == 1 else "FLIPPED"

@@ -118,6 +118,13 @@ progress-streaming. Deployed through stage3-v8.**
   Deferred: cross-request circuit breaker, per-subclass (401 vs 529) handling, fallback model.
   **2.2+2.3 deployed together as stage3-v7 (task-def rev 12); prod meter verified against the
   prod LangSmith trace to the token (25,308 = 25,308).**
+- [x] **2.5 Prompt caching** (recovered Stage 2→3 regression #4 — Stage 2 had it at −47% cost).
+  **Done (Exp 18):** canonical shared prefix across the 3 heavy nodes (`_cache_context`: identical
+  tools+system, breakpoint on the context block; tool_choice varies safely — messages-tier only).
+  Verified: write 7,945 → read 7,945 ×2 (byte-identical); corpus turn **$0.0294 vs $0.09-0.11
+  baseline (~70% cheaper)**; meter==LangSmith invariant held (27,658 = 27,658); all eval suites
+  pass. Bonus finding: CRAG ingestion had silently stale-ified an eval label (Transformer paper
+  now in-corpus) — corpus-mutating agents rot static eval sets; durable fix → 4.1.
 - [x] **2.4 Streaming + latency** — stream the final answer to the user (restore Stage 2
   streaming); parallelize independent work (sub-query retrieval, where safe).
   **Done (Exp 17):** progress-not-tokens design (groundedness gate is anti-token-streaming by

@@ -809,3 +809,52 @@ Exp 14's trace set the targets: `generate` = 13.6s of a ~27s corpus turn, and th
 - SSE generator runs in FastAPI's threadpool per connection; many concurrent streams = many held threads (fine at current scale + rate limits; revisit with async at scale).
 - Parallel retrieval capped at 4 workers — matches realistic sub-query counts (≤3 entities observed).
 - The non-streaming `/ask` remains the contract for programmatic clients; the two endpoints share no code path for the loop — a refactor candidate if they drift.
+
+---
+
+## Experiment 18 — Prompt caching via canonical shared prefix (Roadmap Phase 2.5)
+
+**Date:** 2026-06-11
+**Harness:** regression re-run of the three affected eval suites + per-call usage spy + live cost A/B.
+
+The fourth Stage 2→3 regression recovered: Stage 2 had prompt caching (−47% cost); the Stage 3 rewrite dropped it. Exp 14's profile made the target obvious — **the same ~8K of retrieved sources is sent at full price three times per turn** (grade_relevance 9.3K, generate 9K, grade_groundedness 9.9K ≈ 60% of turn tokens).
+
+### Setup — the marker is the mechanism; byte-identity is the work
+
+- **Why Stage 2's approach didn't transfer:** Stage 2 cached *the same call site against itself* (one growing conversation, rolling breakpoint — prefixes identical for free). Stage 3 has **three different nodes with three different prompts**: different source formatting (`p2` vs `(page 2)`), different section order, different system strings. No `cache_control` placement can make dissimilar bytes match — the work was making a shared prefix *exist*.
+- **Design (doc-verified against the caching reference, not memory):** the cache has a 3-tier invalidation hierarchy (`tools` → `system` → `messages`), and the load-bearing fact is that **`tool_choice` changes invalidate only the messages tier** — so the shared content must live in `system`. All three heavy nodes now send byte-identical `tools=[GRADE_TOOL, GROUND_TOOL]` (fixed order) + `system=[CORE_SYSTEM, history+question+sources ★cache_control]`, built by ONE function (`_cache_context`); only the small `messages` tail and `tool_choice` (`grade` / `none` / `groundedness`) differ. Volatile content (regeneration `fix` instructions, the draft answer under groundedness check) rides in the tail — which is what keeps regen-loop calls cache-hitting. Sonnet 4.6 minimum cacheable prefix = 2048 tokens; the ~8K context clears it.
+- **Meter fix:** cached tokens report in separate usage fields (`cache_creation_input_tokens` / `cache_read_input_tokens`), NOT `input_tokens` — `_usage()` now sums all four or the 2.2 budget breaker silently goes blind.
+- **Bug caught in review before any test ran:** `generate_node` was missing `tools=COMMON_TOOLS` — tools render *before* system in the prefix, so its hash could never match the graders' (write/write/read instead of write/read/read). The silent-invalidator class in the flesh: everything looks fine, the most expensive call just never hits.
+
+### Hypothesis
+
+(1) The three restructured prompts pass their existing eval suites unchanged; (2) one turn shows write→read→read with read size == write size; (3) corpus-turn cost drops 30-40% (~$0.09 → ~$0.06); (4) the Exp 15 meter==LangSmith invariant survives both definitional changes.
+
+### Result — all confirmed; cost beat the estimate (~70% reduction).
+
+- **Regression:** grounding-synthesis 5/5 stable (15/15 samples), keep-best 6/6, relevance **13/13** — after an honest relabel (below). Two harness updates were needed first: the groundedness fixtures had to gain `question` (now part of the node's contract) and `test_keep_best` had to pass `config` + stub the episodic write (drift from 0.6 that had gone unnoticed — the suite hadn't been re-run since).
+- **Cache proof (per-call usage spy):** `grade_relevance` wrote **7,945**; `generate` read **7,945**; `grade_groundedness` read **7,945** — equality to the token proves byte-identity. Prefix economics: 23.8K full-price → 1×1.25 + 2×0.1 ≈ **52% off the dominant block**.
+- **Live A/B:** full corpus turn = **$0.0294** vs the Exp 14 baseline $0.09-0.11 — ~70% cheaper. (Better than estimated because the whole prefix — history+question+sources — is shared, not just sources.)
+- **Meter invariant:** `tokens_used` 27,658 == LangSmith `total_tokens` 27,658 — exact, with both sides now counting cache fields.
+
+### The bonus finding — corpus-mutating agents invalidate static eval labels
+
+The first regression run reported a **dangerous-looking miss**: the relevance gate graded the "Attention is All You Need" question *sufficient* despite its out-of-corpus label. Investigation: the Transformer paper **is in the corpus** (16 chunks) — CRAG ingestion put it there during Stage 3.3 testing. The grader was right; the label was stale. **A self-extending corpus silently rots any eval set whose labels encode corpus membership.** Relabeled with an annotation; the durable fix (an eval-time corpus-membership check, or pinning evals to a frozen corpus snapshot) is queued for the Phase 4 online-eval work.
+
+### Interpretation
+
+1. **Prompt caching for multi-node agents is a prompt-architecture problem, not an API feature toggle.** The marker took one line; the value came from forcing three prompts into a canonical prefix — and the design only works because `tool_choice` invalidation is messages-tier (verified in docs, not assumed).
+2. **The graders are now nearly free riders:** the quality gates that cost 60% of turn tokens read the prefix at 0.1×. The "graders eat the budget" finding from Exp 14 is substantially neutralized — quality-per-dollar tripled.
+3. **Two invariants paid off again:** the eval suites caught nothing (good — the refactor was behavior-preserving) but their *existence* is what made a 3-prompt restructure safe to ship same-day; and the meter==LangSmith check survived two simultaneous definition changes, exactly the drift it exists to catch.
+
+### Decision
+
+- **2.5 complete.** Worst-case request cost drops proportionally (budget unchanged at 60K — it meters volume, not dollars; cost-per-token now varies by cache tier, documented not modeled). Ship as `stage3-v9`.
+- Eval-label freshness vs corpus mutation → folded into Phase 4.1 (online eval) scope.
+
+### Known limitations
+
+- **Cross-turn cache hits are structurally rare** — history grows and the question changes each turn, so each turn writes its own prefix (~1.25× once) and reads it twice. The win is within-turn; the 5-min TTL is irrelevant to it.
+- A refine loop's re-retrieval legitimately rewrites the cache (new sources = new prefix — a real change, not a miss).
+- route/plan/summarize stay uncached by choice (small, no sources, pre-retrieval); episodic/OpenAI embedding calls unmetered as before.
+- The budget now counts cache-read tokens at face value — a cache-heavy turn "spends" budget faster than its dollar cost; acceptable while the budget's job is bounding work volume.

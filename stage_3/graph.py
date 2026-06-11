@@ -65,7 +65,10 @@ def _title_matches(proposed: str, page_text: str, threshold: float = 0.6):
     return hits / len(words) >= threshold
 
 def _usage(msg):
-    return msg.usage.input_tokens + msg.usage.output_tokens
+    u = msg.usage
+    return (u.input_tokens + u.output_tokens
+            + (getattr(u, "cache_creation_input_tokens", 0) or 0)
+            + (getattr(u, "cache_read_input_tokens", 0) or 0))
 
 def verify_citations(answer: str, chunks: list[dict], history: list[dict] | None = None) -> list[str]:
     """Deterministic: return cited papers that were NOT in the retrieved chunks (likely fabricated)."""
@@ -373,6 +376,29 @@ PLAN_TOOL = {
     },
 }
 
+COMMON_TOOLS = [GRADE_TOOL, GROUND_TOOL]
+
+CORE_SYSTEM = (
+    "You are a research agent over a corpus of papers on efficient LLM inference. "
+    "You will be given conversation history, a question, and retrieved sources, then ONE instruction.\n"
+    "- If asked to GRADE RELEVANCE: respond with the 'grade' tool.\n"
+    "- If asked to CHECK GROUNDEDNESS of a draft answer: respond with the 'groundedness' tool.\n"
+    "- If asked to ANSWER: use ONLY the provided sources and cite as [Paper Title (page N)]."
+)
+
+def _cache_context(state):
+    hist = format_history(state.get("history", []), state.get("summary", ""))
+    question = state.get("rewritten_query") or state["question"]
+    context = "\n\n".join(
+        f"[{c['paper_title']} (page {c['page']})]\n{c['text']}" for c in state["chunks"]
+    )
+    return [
+        {"type": "text", "text": CORE_SYSTEM},
+        {"type": "text",
+         "text": f"{hist}\nQuestion: {question}\n\nSources:\n{context}",
+         "cache_control": {"type": "ephemeral"}},
+    ]
+
 def summarize_node(state: GraphState):
     """Entry node: fold any turns that fell out of the recent window into the running summary,
     so long sessions keep their early context compactly instead of truncating it away."""
@@ -496,16 +522,12 @@ def grade_relevance_node(state: GraphState):
     try:
         msg = client.messages.create(
             model=MODEL, max_tokens=300,
-            tools=[GRADE_TOOL], tool_choice={"type": "tool", "name": "grade"},
+            tools=COMMON_TOOLS, tool_choice={"type": "tool", "name": "grade"},
+            system=_cache_context(state),
             messages=[{"role": "user", "content":
-                    f"{hist}"
-                    f"Question: {question}\n\n"
-                    f"Newly retrieved sources:\n{context}\n\n"
-                    "The conversation history above is also available at generation time. "
-                    "Grade whether the retrieved sources COMBINED WITH the conversation history "
-                    "are sufficient to answer the question. "
-                    "For comparision questions, sources convering each entity separately are sufficient - "
-                    "no single source needs to directly compare them"
+                       "Grade whether the retrieved sources COMBINED WITH the conversation history are "
+                       "sufficient to answer the question. For comparison questions, sources convering "
+                       "each entity separately are sufficient - no single source needs to compare them."
                     }],
         )
     except anthropic.APIError as err:
@@ -525,15 +547,15 @@ def grade_groundedness_node(state: GraphState):
     try:
         msg = client.messages.create(
             model=MODEL, max_tokens=400,
-            tools=[GROUND_TOOL], tool_choice={"type": "tool", "name": "groundedness"},
+            tools=COMMON_TOOLS, tool_choice={"type": "tool", "name": "groundedness"},
+            system=_cache_context(state),
             messages=[{"role": "user", "content":
-                f"{hist}"
-                f"Retrieved sources:\n{context}\n\n"
-                f"Answer:\n{state['answer']}\n\n"
-                "Flag ONLY claims asserting a specific fact, number, or result that is absent from or "
-                "contradicted by BOTH the retrieved sources AND the conversation history (a fabrication). "
-                "Do NOT flag reasonable synthesis or high-level characterizations — comparisons synthesize by nature. "
-                "If you cannot quote a specific fabricated sentence, set grounded=true, issues='none'."}],
+               f"Draft answer to check:\n{state['answer']}\n\n"
+               "Flag ONLY claims asserting a specific fact, number, or result that is absent from or "
+               "contradicted by BOTH the retrieved sources AND the conversation history (a fabrication). "
+               "Do NOT flag reasonable synthesis or high-level characterizations - comparisons "
+               "synthesize by nature. If you cannot quote a specific fabricated sentence, "
+               "set grounded=true, issues='none'."}],
         )
         g = next(b.input for b in msg.content if b.type == "tool_use")
         grounded = g.get("grounded", True)
@@ -591,9 +613,6 @@ def refine_query_node(state: GraphState):
 
 # ---------- Result generation ----------
 def generate_node(state: GraphState):
-    context = "\n\n".join(
-        f"[{c['paper_title']} (page {c['page']})]\n{c['text']}" for c in state["chunks"]
-    )
     fix = ""
     if state.get("issues") and state["issues"].lower() != "none":
         fix = (f"\n\nA reviewer flagged these claims as possibly unsupported: {state['issues']}\n"
@@ -601,12 +620,12 @@ def generate_node(state: GraphState):
                         "actually present in the sources above, or (b) remove just that one claim. "
                         "Do NOT alter any other claim. Do NOT invent citations or page numbers.")
 
-    hist = format_history(state.get("history", []), state.get("summary", "")) 
     msg = client.messages.create(
         model=MODEL,
         max_tokens=1024,
-        system="Answer the question using ONLY the provided sources. Cite as [Paper Title (page N)].",
-        messages=[{"role": "user", "content": f"{hist}\nQuestion: {state['question']}\n\nSources:\n{context}{fix}"}],
+        tools=COMMON_TOOLS, tool_choice={"type": "none"},
+        system=_cache_context(state),
+        messages=[{"role": "user", "content": f"Answer the question now.{fix}"}],
     )
     answer = "".join(b.text for b in msg.content if b.type == "text")
     out = {"answer": answer,

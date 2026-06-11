@@ -13,11 +13,13 @@ LABELED = [
     ("How does H2O decide which KV cache entries to evict?", True),
     ("What did FlashAttention-2 change about work partitioning?", True),
     ("How does Medusa accelerate decoding with multiple heads?", True),
+    # RELABELED 2026-06-11: the Transformer paper was ingested by CRAG during Stage 3.3 testing —
+    # corpus-mutating agents invalidate static eval labels (Exp 18 finding).
+    ("What is the original Transformer architecture from 'Attention is All You Need'?", True),
     # out-of-corpus -> grader should say INSUFFICIENT (relevant=False)
     ("What is the Mamba state-space model architecture?", False),
     ("Explain how convolutional neural networks work.", False),
     ("How does BERT's masked language modeling pretraining work?", False),
-    ("What is the original Transformer architecture from 'Attention is All You Need'?", False),
     ("How do diffusion models generate images?", False),
     ("What is batch normalization and why does it help training?", False),
 ]
