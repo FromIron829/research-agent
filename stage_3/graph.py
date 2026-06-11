@@ -15,6 +15,7 @@ from typing import TypedDict, Annotated
 from memory import format_history, summarize_history
 import episodic
 
+import anthropic
 from anthropic import Anthropic
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, START, END
@@ -33,10 +34,11 @@ from retrieve import _collection, _openai_client, EMBED_MODEL, embed_query
 from extract import strip_references
 
 load_dotenv()
-client = wrap_anthropic(Anthropic())
+client = wrap_anthropic(Anthropic(timeout=60.0, max_retries=4))
 MODEL = "claude-sonnet-4-6"
 MAX_ATTEMPTS = 3
 MAX_GEN = 2
+REQUEST_TOKEN_BUDGET = 60_000
 
 ARXIV_API = "https://export.arxiv.org/api/query"
 ARXIV_HEADERS = {"User-Agent": "research-agent/0.1 (https://github.com/FromIron829/research-agent)"}
@@ -60,6 +62,9 @@ def _title_matches(proposed: str, page_text: str, threshold: float = 0.6):
         return True
     hits = sum(1 for w in words if w in head)
     return hits / len(words) >= threshold
+
+def _usage(msg):
+    return msg.usage.input_tokens + msg.usage.output_tokens
 
 def verify_citations(answer: str, chunks: list[dict], history: list[dict] | None = None) -> list[str]:
     """Deterministic: return cited papers that were NOT in the retrieved chunks (likely fabricated)."""
@@ -132,6 +137,7 @@ class GraphState(TypedDict):
     best_n_issues: int
     summary: str          # running summary of turns older than the recent window (persists across turns)
     n_summarized: int     # how many history messages have already been folded into `summary`
+    tokens_used: int
 
 # ---------- Paper injection ----------
 def search_arxiv(query: str, max_results: int = 1, retries: int = 2):
@@ -363,23 +369,31 @@ PLAN_TOOL = {
 def summarize_node(state: GraphState):
     """Entry node: fold any turns that fell out of the recent window into the running summary,
     so long sessions keep their early context compactly instead of truncating it away."""
-    before = state.get("n_summarized", 0)
-    summary, n = summarize_history(
-        state.get("history", []), state.get("summary", ""), before, client, MODEL)
-    if n != before:
+    before = state.get("n_summarized", 0)                    
+    try:                                                       
+        summary, n = summarize_history(                        
+            state.get("history", []), state.get("summary", ""), before, client, MODEL)
+    except anthropic.APIError as err:                          
+        print(f"[summarize] LLM unavailable ({type(err).__name__}) -> keeping prior summary")
+        return {"summary": state.get("summary", ""), "n_summarized": before}
+    if n != before:                                            
         print(f"[summarize] folded {n - before} message(s) -> summary now {len(summary)} chars (n_summarized={n})")
-    return {"summary": summary, "n_summarized": n}
+    return {"summary": summary, "n_summarized": n}             
 
 def route_intent_node(state: GraphState):
     hist = format_history(state.get("history", []), state.get("summary", ""))
-    msg = client.messages.create(
-        model=MODEL, max_tokens=100,
-        tools=[ROUTE_TOOL], tool_choice={"type": "tool", "name": "route"},
-        messages=[{"role": "user", "content": f"{hist}\nUser's new message: {state['question']}\n\nClassify the intent."}],
-    )
+    try:
+        msg = client.messages.create(
+            model=MODEL, max_tokens=100,
+            tools=[ROUTE_TOOL], tool_choice={"type": "tool", "name": "route"},
+            messages=[{"role": "user", "content": f"{hist}\nUser's new message: {state['question']}\n\nClassify the intent."}],
+        )
+    except anthropic.APIError as err:
+        print(f"[route] LLM unavailable ({type(err).__name__}) -> defaulting to corpus")
+        return {"intent": "corpus"}
     intent = next((b.input for b in msg.content if b.type == "tool_use"), {}).get("intent", "corpus")
     print(f"[route] intent={intent}")
-    return {"intent": intent}
+    return {"intent": intent, "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
 
 def recall_node(state: GraphState):
     hists = episodic.recall(state["question"], k=3)
@@ -403,27 +417,32 @@ def recall_node(state: GraphState):
     answer = "".join(b.text for b in msg.content if b.type == "text")
     return {"answer": answer,
             "history": [{"role": "user", "content": state["question"]},
-                        {"role": "assistant", "content": answer}]}
+                        {"role": "assistant", "content": answer}],
+                        "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
 
 def plan_query_node(state: GraphState):
     hist = format_history(state.get("history", []), state.get("summary", ""))
     if not hist:
         q = state["question"]
         print(f"[plan] no histroy - passthrough: {q!r}")
+        return {"query": q, "rewritten_query": q, "sub_queries": [q],}
+    try:
+        msg = client.messages.create(
+            model=MODEL, max_tokens=200,
+            tools=[PLAN_TOOL], tool_choice={"type": "tool", "name": "plan_queries"},
+            messages=[{"role": "user", "content":
+                    f"{hist}\nNew message: {state['question']}\n\n"
+                    "Step 1: rewrite the message as a fully standalone question - "
+                    "resolve all pronous and references using the conversation above.\n\n"
+                    "Step 2: Decide what new information needs to be fetched from the knowledge base. "
+                    "Any topic already explained in detail in the conversation above does NOT need a sub-query - "
+                    "that information is avaliable from history and will be used at generation time. "
+                    "Only generate sub-queries for topics NOT yet covered in the conversation."}],
+        )
+    except anthropic.APIError as err:
+        q = state["question"]
+        print(f"[plan] LLM unavailable ({type(err).__name__}) -> passthrough: {q!r}")
         return {"query": q, "rewritten_query": q, "sub_queries": [q]}
-    
-    msg = client.messages.create(
-        model=MODEL, max_tokens=200,
-        tools=[PLAN_TOOL], tool_choice={"type": "tool", "name": "plan_queries"},
-        messages=[{"role": "user", "content":
-                   f"{hist}\nNew message: {state['question']}\n\n"
-                   "Step 1: rewrite the message as a fully standalone question - "
-                   "resolve all pronous and references using the conversation above.\n\n"
-                   "Step 2: Decide what new information needs to be fetched from the knowledge base. "
-                   "Any topic already explained in detail in the conversation above does NOT need a sub-query - "
-                   "that information is avaliable from history and will be used at generation time. "
-                   "Only generate sub-queries for topics NOT yet covered in the conversation."}],
-    )
     p = next((b.input for b in msg.content if b.type == "tool_use"), {})
     rewritten = (p.get("rewritten_question") or state["question"]).strip()
     sub_queries = [s.strip() for s in (p.get("sub_queries") or []) if s.strip()]
@@ -432,7 +451,7 @@ def plan_query_node(state: GraphState):
     
     print(f"[plan] rewritten={rewritten!r}")
     print(f"[plan] sub_queries={sub_queries}")
-    return {"query": sub_queries[0], "rewritten_query": rewritten, "sub_queries": sub_queries}
+    return {"query": sub_queries[0], "rewritten_query": rewritten, "sub_queries": sub_queries, "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
 
 def answer_from_history_node(state: GraphState):
     hist = format_history(state.get("history", []), state.get("summary", ""))
@@ -445,7 +464,8 @@ def answer_from_history_node(state: GraphState):
     answer = "".join(b.text for b in msg.content if b.type == "text")
     return {"answer": answer,
             "history": [{"role": "user", "content": state["question"]},
-                        {"role": "assistant", "content": answer}]}
+                        {"role": "assistant", "content": answer}],
+                         "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
 
 def rewrite_query_node(state: GraphState):
     hist = format_history(state.get("history", []), state.get("summary", ""))
@@ -466,47 +486,57 @@ def grade_relevance_node(state: GraphState):
     context = "\n\n".join(f"[{c['paper_title']} p{c['page']}] {c['text']}" for c in state["chunks"])
     question = state.get("rewritten_query") or state["question"]
     hist = format_history(state.get("history", []), state.get("summary", ""))
-    msg = client.messages.create(
-        model=MODEL, max_tokens=300,
-        tools=[GRADE_TOOL], tool_choice={"type": "tool", "name": "grade"},
-        messages=[{"role": "user", "content":
-                   f"{hist}"
-                   f"Question: {question}\n\n"
-                   f"Newly retrieved sources:\n{context}\n\n"
-                   "The conversation history above is also available at generation time. "
-                   "Grade whether the retrieved sources COMBINED WITH the conversation history "
-                   "are sufficient to answer the question. "
-                   "For comparision questions, sources convering each entity separately are sufficient - "
-                   "no single source needs to directly compare them"
-                   }],
-    )
+    try:
+        msg = client.messages.create(
+            model=MODEL, max_tokens=300,
+            tools=[GRADE_TOOL], tool_choice={"type": "tool", "name": "grade"},
+            messages=[{"role": "user", "content":
+                    f"{hist}"
+                    f"Question: {question}\n\n"
+                    f"Newly retrieved sources:\n{context}\n\n"
+                    "The conversation history above is also available at generation time. "
+                    "Grade whether the retrieved sources COMBINED WITH the conversation history "
+                    "are sufficient to answer the question. "
+                    "For comparision questions, sources convering each entity separately are sufficient - "
+                    "no single source needs to directly compare them"
+                    }],
+        )
+    except anthropic.APIError as err:
+        print(f"[grade] LLM unavailable ({type(err).__name__}) -> failing open (sufficient)")
+        return {"relevant": True, "attempts": state.get("attempts", 0) + 1}
     grade = next(b.input for b in msg.content if b.type == "tool_use")
     sufficient = grade.get("sufficient", True)
     reason = grade.get("reason", "")
     attempts = state.get("attempts", 0) + 1
     print(f"[grade] sufficient={sufficient} (attempt {attempts}) — {reason}")
-    return {"relevant": sufficient, "attempts": attempts}
+    return {"relevant": sufficient, "attempts": attempts,
+            "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
 
 def grade_groundedness_node(state: GraphState):
     context = "\n\n".join(f"[{c['paper_title']} p{c['page']}] {c['text']}" for c in state["chunks"])
     hist = format_history(state.get("history", []), state.get("summary", ""))
-    msg = client.messages.create(
-        model=MODEL, max_tokens=400,
-        tools=[GROUND_TOOL], tool_choice={"type": "tool", "name": "groundedness"},
-        messages=[{"role": "user", "content":
-            f"{hist}"
-            f"Retrieved sources:\n{context}\n\n"
-            f"Answer:\n{state['answer']}\n\n"
-            "Flag ONLY claims asserting a specific fact, number, or result that is absent from or "
-            "contradicted by BOTH the retrieved sources AND the conversation history (a fabrication). "
-            "Do NOT flag reasonable synthesis or high-level characterizations — comparisons synthesize by nature. "
-            "If you cannot quote a specific fabricated sentence, set grounded=true, issues='none'."}],
-    )
-    g = next(b.input for b in msg.content if b.type == "tool_use")
-    grounded = g.get("grounded", True)
-    issues = (g.get("issues") or "none").strip()
-    raw_fabs = g.get("n_fabrications", 0)
-    llm_fabs = raw_fabs if isinstance(raw_fabs, int) else 0
+    try:
+        msg = client.messages.create(
+            model=MODEL, max_tokens=400,
+            tools=[GROUND_TOOL], tool_choice={"type": "tool", "name": "groundedness"},
+            messages=[{"role": "user", "content":
+                f"{hist}"
+                f"Retrieved sources:\n{context}\n\n"
+                f"Answer:\n{state['answer']}\n\n"
+                "Flag ONLY claims asserting a specific fact, number, or result that is absent from or "
+                "contradicted by BOTH the retrieved sources AND the conversation history (a fabrication). "
+                "Do NOT flag reasonable synthesis or high-level characterizations — comparisons synthesize by nature. "
+                "If you cannot quote a specific fabricated sentence, set grounded=true, issues='none'."}],
+        )
+        g = next(b.input for b in msg.content if b.type == "tool_use")
+        grounded = g.get("grounded", True)
+        issues = (g.get("issues") or "none").strip()
+        raw_fabs = g.get("n_fabrications", 0)
+        llm_fabs = raw_fabs if isinstance(raw_fabs, int) else 0
+        turn_tokens = _usage(msg)
+    except anthropic.APIError as err:
+        print(f"[groundedness] LLM grader unavailable ({type(err).__name__}) -> deterministic floor only")
+        grounded, issues, llm_fabs, turn_tokens = True, "none", 0, 0
 
     # Guard: "not grounded" with no named issue is a false positive -> treat as grounded
     if not grounded and issues.lower() in ("", "none"):
@@ -527,7 +557,8 @@ def grade_groundedness_node(state: GraphState):
     n_issues = 0 if grounded else max(1, llm_fabs + len(bad))
     print(f"[groundedness] grounded={grounded} (gen attempt {gen_attempts}) — {issues[:80]}")
 
-    out = {"grounded": grounded, "issues": issues, "gen_attempts": gen_attempts}
+    out = {"grounded": grounded, "issues": issues, "gen_attempts": gen_attempts,
+                           "tokens_used": state.get("tokens_used", 0) + turn_tokens}
     best_n = state.get("best_n_issues")
     if grounded or best_n is None or n_issues < best_n:
         out["best_answer"] = state["answer"]
@@ -536,16 +567,20 @@ def grade_groundedness_node(state: GraphState):
 
 # ---------- Refine query to retrieve again ----------
 def refine_query_node(state: GraphState):
-    msg = client.messages.create(
-        model=MODEL, max_tokens=80,
-        messages=[{"role": "user", "content":
-                   f"This search query returned insufficient results: {state['query']!r}\n"
-                   f"For the question: {state['question']!r}\n"
-                   "Write ONE improved search query using different terms or a sharper angle. Output only the query."}],
-    )
+    try:
+        msg = client.messages.create(
+            model=MODEL, max_tokens=80,
+            messages=[{"role": "user", "content":
+                    f"This search query returned insufficient results: {state['query']!r}\n"
+                    f"For the question: {state['question']!r}\n"
+                    "Write ONE improved search query using different terms or a sharper angle. Output only the query."}],
+        )
+    except anthropic.APIError as err:
+        print(f"[refine] LLM unavailable ({type(err).__name__}) -> keeping current query")
+        return {}
     new_q = "".join(b.text for b in msg.content if b.type == "text").strip()
     print(f"[refine] {state['query']!r} -> {new_q!r}")
-    return {"query": new_q}
+    return {"query": new_q, "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
 
 # ---------- Result generation ----------
 def generate_node(state: GraphState):
@@ -567,7 +602,8 @@ def generate_node(state: GraphState):
         messages=[{"role": "user", "content": f"{hist}\nQuestion: {state['question']}\n\nSources:\n{context}{fix}"}],
     )
     answer = "".join(b.text for b in msg.content if b.type == "text")
-    out = {"answer": answer}
+    out = {"answer": answer,
+                           "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
     if not state.get("first_answer"):
         out["first_answer"] = answer
     return out
@@ -654,6 +690,9 @@ def ingest_node(state: GraphState):
 def route_after_grade(state: GraphState):
     if state["relevant"]:
         return "generate"
+    if state.get("tokens_used", 0) > REQUEST_TOKEN_BUDGET:
+        print(f"[budget] {state['tokens_used']} > {REQUEST_TOKEN_BUDGET} -> answering with what we have")
+        return "generate"
     if state["attempts"] >= MAX_ATTEMPTS:
         if state.get("ingested"):
             print("[route] still insufficient after ingestion -> answer with what we have")
@@ -664,6 +703,9 @@ def route_after_grade(state: GraphState):
 
 def route_after_groundedness(state: GraphState):
     if state["grounded"]:
+        return "respond"
+    if state.get("tokens_used", 0) > REQUEST_TOKEN_BUDGET:
+        print(f"[budget] {state['tokens_used']} > {REQUEST_TOKEN_BUDGET} -> respond with best draft")
         return "respond"
     if state["gen_attempts"] >= MAX_GEN:
         print("[route] groundedness cap reached -> responding as-is")
@@ -766,6 +808,7 @@ def fresh_turn(question: str):
         "question": question, "query": "", "rewritten_query": "", "sub_queries": [], "chunks": [], "relevant": False, "attempts": 0,
         "first_answer": "", "answer": "", "grounded": False, "issues": "", "gen_attempts": 0,
         "candidate": {}, "approved": False, "ingested": False, "ingested_aid": "", "intent": "", "best_answer": "", "best_n_issues": None,
+        "tokens_used": 0,
     }
 
 if __name__ == "__main__":

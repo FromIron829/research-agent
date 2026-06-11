@@ -7,6 +7,8 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 from typing import Optional
+import anthropic
+from fastapi.responses import JSONResponse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from graph import graph, fresh_turn
@@ -57,3 +59,8 @@ def resume(request: Request, req: ResumeRequest):
         raise HTTPException(status_code=409, detail="No pending approval on this thread.")
     result = graph.invoke(Command(resume=req.decision), config=config)
     return _format(result, req.thread_id)
+
+@app.exception_handler(anthropic.APIError)
+def llm_unavailable(request: Request, exc: anthropic.APIError):
+    return JSONResponse(status_code=503,
+                        content={"status": "error", "detail": "Model provider unavailable - please retry."})

@@ -678,3 +678,91 @@ One env-var activation + one wrapped client yields: per-node spans with latency,
 - **Traces leave AWS** (SaaS boundary, accepted above); free tier ~5k traces/mo fits current traffic with wide margin.
 - **Eval scripts and the REPL share the dev project** — fine for now; a separate `-evals` project would keep eval-run noise out if eval volume grows.
 - The verification request itself showed the **drain-window blind spot**: nothing in the response identifies which image served it. A `/health` version field would make deploy verification deterministic.
+
+---
+
+## Experiment 15 — Cost governance: per-request token budget + circuit breaker (Roadmap Phase 2.2)
+
+**Date:** 2026-06-10
+**Harness:** deterministic router unit tests + a real metered turn diffed against LangSmith + a forced budget trip.
+
+`MAX_ATTEMPTS`/`MAX_GEN` cap *iterations*, not *spend*; nothing watched the running total of a request. Exp 14's traces supplied the design data: happy-path corpus turn ≈ 28-32K tokens, and **the two graders consume ~60% of request tokens** (each re-reads all ten chunks: 9.3K + 9.9K vs generate's 9K) — so the corrective loops multiply the *most expensive* nodes. The breaker therefore belongs exactly where the loops are decided.
+
+### Setup
+
+- **Meter:** `tokens_used: int` in GraphState — deliberately **not** an `operator.add` reducer: an additive reducer can't be reset, so `fresh_turn` couldn't zero it per request (the same reducer-reset trap as `history`, from the other side). Each of the 8 LLM-calling nodes does read-add-write (`state.get("tokens_used", 0) + _usage(msg)`); safe because the graph is sequential. Metering principle: *meter where a `msg` exists* — `recall_node`'s no-hits early return has no LLM call and stays untouched.
+- **Breaker:** in the two routing functions. Over budget: `route_after_grade` → `"generate"` (answer from current chunks; no refine, no ingestion), `route_after_groundedness` → `"respond"` — where the **0.4 keep-best fallback** already returns the least-fabricated draft. The breaker needed no new degrade path; it reuses the adversarially-tested one. Over-budget = degrade to best-effort, never fail-with-nothing.
+- **Budget:** `REQUEST_TOKEN_BUDGET = 60_000` ≈ happy path + one refine round (+10K) + one regen round (+19K). Tokens, not dollars — usage reports tokens; a pricing table would rot.
+- **Bug caught during typing review:** one guard had `state.get("tokens_used")` without the `0` default → `None > int` TypeError on any thread parked at approval *before* this change and resumed *after* (`/resume` bypasses `fresh_turn`). The old-checkpoint case is now an explicit unit test.
+
+### Hypothesis
+
+(1) Routers short-circuit both loops when over budget and behave identically otherwise; (2) the meter matches LangSmith's externally-observed totals; (3) a tripped request still returns a usable answer and never proposes ingestion.
+
+### Result — 10/10 checks; meter matches LangSmith to the token.
+
+- **Router units (7/7, no LLM):** breaker fires in both routers over budget; under budget the loops behave exactly as before; the missing-key (pre-2.2 checkpoint) case routes normally instead of raising.
+- **Meter accuracy — exact:** AWQ turn metered **27,651** vs LangSmith **27,651**; Mamba turn **21,930** vs **21,930**. Two independent counters, zero drift.
+- **Forced trip (budget=3000, out-of-corpus question):** `grade` insufficient → would have refined ×3 then proposed ingestion → `[budget] 8006 > 3000` → straight to generate → honest "sources don't contain Mamba" answer, grounded, **no approval interrupt**. Degraded gracefully mid-flight.
+
+### Interpretation
+
+1. **The breaker bounds looping, not the closing pass:** the tripped request finished at 21.9K tokens on a 3K budget because the degrade path (generate + groundedness) still runs — worst case ≈ budget + one closing pass (~20K). That's the correct semantics: the user already paid for the loop tokens; produce the best answer they bought.
+2. **Exact meter/LangSmith agreement** doubles as a completeness proof: every LLM call on these paths flows through a metered node (the unmetered summarizer/propose-path contributed nothing here, as designed).
+3. **Defense in depth now reads:** per-call `max_tokens` → loop caps → token budget → rate limit (requests/IP) → AWS billing alarm. Each layer catches what the previous can't.
+
+### Decision
+
+- **2.2 complete.** Deploy batched with 2.3 (next code change) rather than shipping a v7 image per item.
+- Worst-case per-request spend is now ~80K tokens (~$0.35) regardless of how pathological the request; combined with 50/day/IP that's a ~$17.50/day/IP ceiling — still IP-unbounded (Phase 3 auth).
+
+### Known limitations
+
+- **Token budget treats input/output tokens equally** (5× price difference) — a dollar-weighted budget would be more faithful but needs a pricing table; revisit if economics tighten.
+- **Summarizer + propose-path calls are unmetered** (bounded, one small call each; propose only runs under budget by construction now).
+- **Budget is per-request, not per-conversation/user/day** — a chatty user pays N×budget; per-user accounting lands with Phase 3 auth.
+- The breaker is reactive (fires after the grader that exceeded the budget) — a *predictive* check ("will the next grader call exceed it?") could save one grader round; not worth the complexity yet.
+
+---
+
+## Experiment 16 — LLM-call resilience: per-node degrades + honest API failure (Roadmap Phase 2.3)
+
+**Date:** 2026-06-10
+**Harness:** forced total outage — `client.messages.create` monkeypatched to raise `APIConnectionError`; every degrade path asserted node-by-node, plus the API boundary end-to-end.
+
+The asymmetry: nodes treated *arXiv* as hostile (retries, backoff, graceful degrade) but trusted *Anthropic* completely — any 429/529/timeout in any of 11 call sites crashed the request with a raw 500.
+
+### Setup
+
+- **Layer 1 — SDK config, not reinvention:** the Anthropic SDK already retries connection errors/408/429/5xx with backoff (`max_retries=2` default); what its defaults get wrong for a request path is the **600s timeout**. One line: `Anthropic(timeout=60.0, max_retries=4)`. Rejected alternative: LangGraph's node-level `RetryPolicy` — re-running a whole node replays side effects (`attempts` increments would eat loop budget; the meter would double-count). SDK retry replays only the HTTP call.
+- **Layer 2 — per-node failure semantics** (the design content: "what is the *safe* output when the model is unreachable?" — extending the graders' malformed-output defaults to failed *calls*): route_intent → `corpus` (Exp 3 tiebreaker); plan_query → passthrough (= the no-history path); grade_relevance → fail open; **grade_groundedness → LLM grader skipped but the deterministic `verify_citations` floor still runs** (outage downgrades the gate from two defenses to one, not to zero); refine_query → keep current query (loop caps still bound); summarize → keep prior summary, fold next turn. **generate / answer_from_history / recall → raise honestly** — no real answer exists without the model; fake degradation is worse.
+- **Layer 3 — the API boundary:** `@app.exception_handler(anthropic.APIError)` → **503** with a retryable semantic body (the 1.3 lesson: convert machinery failure into a status code at the boundary).
+- Implementation rule that kept it clean: *wrap only the lines that can throw; compute anything the except-path needs before the `try`.*
+
+### Hypothesis
+
+Under total provider outage: every degrade-path node returns its safe default; the deterministic citation check still catches fabrications; generate-class nodes raise; the API returns 503, not a stack trace.
+
+### Result — 10/10, after the forced-path tests caught two real bugs.
+
+1. **Bug 1 (would have crashed the graph *during* an outage):** the plan-flavored except body was pasted into `route_intent_node` — it returned `query`/`sub_queries` but never `intent`, so the conditional edge would KeyError. A degrade handler worse than none. Caught by the first assertion run.
+2. **Bug 2 (the predicted bookkeeping trap):** `grade_groundedness`'s return still summed `_usage(msg)` — `UnboundLocalError` on the outage path where `msg` never exists; fixed to the `turn_tokens` variable set in both paths. Notably the deterministic floor had *already worked* before the crash — the citation-check line printed, then the return blew up.
+3. **Final run:** all degrades correct; **fabricated citation caught with the LLM down** (`grounded=False` via `verify_citations` alone); clean answer failed open; generate raised `APIError`; end-to-end `/ask` during outage → route→corpus, plan→passthrough, retrieve fine (different provider), grade→open, generate→raise → **503** with the semantic body.
+
+### Interpretation
+
+1. **Degrade order mirrors the value chain:** everything *around* generation is heuristic optimization (routing, planning, grading, refining) and can be skipped under duress; generation itself is the product and must fail honestly. The graph now limps as far as truth allows, then stops.
+2. **Redundant defenses pay off precisely here:** the groundedness gate was built with an LLM grader *plus* a deterministic floor (Exp 1); an outage is exactly the scenario where the deterministic half carries the gate alone.
+3. **Forced-path testing caught both bugs** the happy path never would: one copy-paste error and one bookkeeping error, both *only* reachable during an outage — i.e., they would have first manifested in production at the worst possible moment.
+
+### Decision
+
+- **2.3 complete.** Ship 2.2+2.3 together as `stage3-v7` (both are graph-internal; one rollout).
+- Next: **2.4** — streaming + latency, targeting `generate`'s 13.6s (half the wall-clock, per Exp 14's trace).
+
+### Known limitations
+
+- Degrades are **per-call, stateless** — no circuit-breaker memory across requests (a sustained outage degrades every request independently; a process-level breaker could skip doomed grader calls and save their timeouts).
+- The 503 path **loses the turn's partial work** (tokens spent before the generate failure are gone; `fresh_turn` resets on the client's retry). Durable mid-turn resume is possible with the checkpointer but out of scope.
+- Outage simulation covers `APIConnectionError` as the representative `APIError`; per-subclass behavior (e.g., 529 overloaded vs 401 auth) is not differentiated — a 401 arguably should *not* be retried or degraded silently. Acceptable for now: auth misconfig fails every call and surfaces immediately as 503s.
+- The SDK's own retry layer is **trusted, not tested** (would need httpx-level mocking; low value relative to cost).

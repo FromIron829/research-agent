@@ -99,10 +99,20 @@ conversations survive server restarts AND cloud redeploys.**
   cost baselines: ~$0.01 followup vs ~$0.09 corpus turn. New deploy lesson: draining old task
   served the first verification request (RUNNING ≠ gateway switched). Embeddings unwrapped;
   prints kept as log breadcrumbs.
-- [ ] **2.2 Cost governance** — per-request token/cost budget + circuit breaker (one query fans
+- [x] **2.2 Cost governance** — per-request token/cost budget + circuit breaker (one query fans
   out to 6–10 LLM calls today); surface cost per request in traces.
-- [ ] **2.3 LLM-call resilience** — retry-with-backoff on Anthropic/OpenAI calls, timeout
+  **Done (Exp 15):** `tokens_used` meter in state (plain int, NOT a reducer — reset trap), 8 nodes
+  metered, breaker in both routers (over budget → generate-with-what-we-have / respond-with-best,
+  reusing the 0.4 keep-best degrade). Budget 60K ≈ happy path + 1 refine + 1 regen. 10/10 checks;
+  meter matches LangSmith **to the token** (27,651 = 27,651). Worst case ~$0.35/request. Deploy
+  batched with 2.3. Per-user budgets need Phase 3 auth.
+- [x] **2.3 LLM-call resilience** — retry-with-backoff on Anthropic/OpenAI calls, timeout
   handling, fallback model; a provider 429/529 must not crash the graph mid-run.
+  **Done (Exp 16):** SDK-level retry config (timeout 600s→60s, max_retries 4) + per-node failure
+  semantics (graders fail open, router→corpus, planner→passthrough; groundedness keeps the
+  deterministic citation floor during outages; generate-class raises honestly) + `APIError`→503
+  at the API boundary. Forced-outage suite 10/10 — caught 2 real outage-only bugs before ship.
+  Deferred: cross-request circuit breaker, per-subclass (401 vs 529) handling, fallback model.
 - [ ] **2.4 Streaming + latency** — stream the final answer to the user (restore Stage 2
   streaming); parallelize independent work (sub-query retrieval, where safe).
 
