@@ -135,7 +135,10 @@ progress-streaming. Deployed through stage3-v8.**
   traverses the stream as `approval_needed`. Parallel sub-query retrieval: identical chunks,
   1.70s → 0.43s. The stream narrates the CRAG loop live (demo artifact).
 
-## Phase 3 — Secure & multi-user (Tier 3)
+## Phase 3 — Secure & multi-user (Tier 3) ✅ COMPLETE
+
+**Status: all items done (Exp 19-22). Auth + thread ownership, secrets in Secrets Manager,
+per-tenant corpus + memory isolation, prompt-injection hardening. Deployed through stage3-v14.**
 
 - [x] **3.1 AuthN/Z** — user identity + auth on endpoints; rate-limit per user, not just per IP.
   **Done (Exp 19):** API keys (SHA-256 at rest, Postgres/SQLite dual backend), ADMIN_KEY bootstrap +
@@ -155,9 +158,13 @@ progress-streaming. Deployed through stage3-v8.**
   tenant-stamped + filtered (cross-user memory leak closed). Isolation suite 8/8 (network-free
   end-to-end ingest via synthetic PDF); prod two-key check passed. stage3-v13 (rev 19).
   Deferred: per-tenant BM25; overlay durability → 4.3.
-- [ ] **3.3 Injection & poisoning defenses** — treat retrieved chunks and conversation history as
+- [x] **3.3 Injection & poisoning defenses** — treat retrieved chunks and conversation history as
   untrusted input (they're interpolated into prompts today); sanitize/segregate; validate ingested
   content beyond the arXiv-id/title check.
+  **Done (Exp 22):** spotlighting (fenced `<sources>`/`<conversation>` + SECURITY clause) + `_sanitize`
+  (strips fence tags, defangs role headers) at the single `_cache_context` choke point; question
+  left unfenced (self-attack only); poisoning contained by 3.2 overlays; UI escapes output. Injection
+  suite 6/6, prod probe clean, cache + all gates unchanged. stage3-v14 (rev 20).
 
 ## Phase 4 — Quality lifecycle & scale (Tier 4)
 
