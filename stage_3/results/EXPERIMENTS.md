@@ -1007,3 +1007,71 @@ question returns 3,193 chars.**
 - The tool-pull fix is prompt-level; the structural alternative (separate cached prefixes per task
   family) would cost cache sharing — revisit only if empty turns recur (the retry + guard now make
   that recoverable anyway).
+
+
+---
+
+## Experiment 21 — Multi-tenancy: per-tenant overlay corpus + scoped memory (Roadmap Phase 3.2)
+
+**Date:** 2026-06-12
+**Harness:** two-tenant isolation suite (8 checks, incl. network-free end-to-end ingest) + prod two-key memory-isolation check.
+
+The user-articulated problem (and 3.2's charter): even with auth, ONE shared corpus means any
+approved ingestion lands in EVERYONE's knowledge base (the Exp 18 label-rot was this, self-inflicted);
+and the episodic store was a live cross-user leak — "what did I ask last week" searched ALL users'
+conversations.
+
+### Setup — public library + personal bookshelves
+
+- **Base corpus frozen:** `papers` collection + BM25 index become shared and READ-ONLY. `ingest_node`
+  never writes them again (and drops the `add_chunks` BM25 append). Side effect: eval labels over the
+  base corpus can no longer rot.
+- **Overlay per tenant:** tenant id = API key id (3.1's identity), flowing api → `fresh_turn(q, tenant)`
+  → state. Ingestion upserts into `papers_overlay_<tenant>` (created with cosine — the Exp 8 metric
+  lesson applied at birth this time). Isolation by construction — your chunks physically aren't in
+  anyone else's collection; there is no query filter to forget.
+- **Retrieval = base ∪ own overlay:** `retrieve_node` merges base hybrid results with vector search
+  over the tenant's overlay (existing dedup machinery); the fresh-ingest boost is overlay-scoped.
+- **Episodic scoped:** turns stamped with tenant; `recall` filters `where={"tenant": ...}`.
+  Pre-existing unstamped prod turns go dark rather than leak (chosen failure direction).
+
+### Hypothesis
+
+A's ingested paper is retrievable by A, invisible to B, leaves the base byte-count unchanged; B keeps
+full base access; A/B recalls are disjoint; default-tenant compatibility keeps all old harnesses green.
+
+### Result — 8/8 local, prod verified.
+
+- **Network-free end-to-end ingest:** a synthetic in-memory PDF (pymupdf) + a surgical `requests.get`
+  patch let the REAL `ingest_node` pipeline run (download → title check → chunk → embed → upsert)
+  with no arXiv dependency. (First attempt used a blanket patch and poisoned tiktoken's BPE download —
+  monkeypatch blast radius: `graph.requests` IS the global module. Surgical-by-URL fixed it.)
+- A's overlay populated; **base count 1,668 before and after** (frozen proven); A retrieves the
+  synthetic paper, **B cannot**, B still gets ≥5 base chunks; A/B episodic recalls fully disjoint.
+- `eval_episodic` regression 5/5 + 5/5 (default tenant "public" keeps old call sites working).
+- **Prod (stage3-v13, rev 19):** guest asked about PagedAttention, a second minted key asked about
+  KIVI; the second key's "what did I ask earlier?" recalled its own KIVI question and did NOT
+  surface the guest's — the cross-user leak is closed in production.
+
+### Interpretation
+
+1. **Isolation by construction beats isolation by filter** for the corpus (separate collections = no
+   forgettable WHERE clause); episodic uses the filter approach because one collection of small turns
+   is the right storage shape — the leak class lives on in that one `where`, so it gets the test.
+2. **The overlay resolves Exp 18's finding at the root:** a frozen base means corpus-membership eval
+   labels are stable again; mutation is quarantined to per-tenant shelves.
+3. **Identity (3.1) was the enabling primitive** — tenant id, thread owner, rate key, and overlay name
+   are all the same string.
+
+### Decision
+
+- **3.2 complete** (stage3-v13, rev 19). Remaining in Phase 3: **3.3 injection & poisoning defenses**.
+
+### Known limitations
+
+- Overlay search is **vector-only** (no per-tenant BM25); slightly weaker keyword recall on
+  tenant-ingested papers. Revisit if overlays grow.
+- Overlays + episodic store remain **ephemeral on Fargate** (container disk, wiped per redeploy) —
+  the durability fix is 4.3 (managed vector store); 3.2 fixed visibility, not persistence.
+- Guest key = one tenant: all guest users share a shelf and a memory space (by design).
+- Old unstamped episodic turns are invisible to everyone now (dark, not leaked) — acceptable.

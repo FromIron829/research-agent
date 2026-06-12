@@ -148,8 +148,13 @@ progress-streaming. Deployed through stage3-v8.**
   GetSecretValue; rev 17 verified. **(Exp 20)** — whose prod verification also caught a latent
   empty-regen bug from the 2.5 refactor (draft-blind regen prompt + tool-pull empty turn + gate
   passing empty answers); fixed + forced-regen suite 5/5; deployed stage3-v12 (rev 18).
-- [ ] **3.2 Multi-tenancy & corpus isolation** — ingestion currently writes to ONE global
+- [x] **3.2 Multi-tenancy & corpus isolation** — ingestion currently writes to ONE global
   corpus; isolate per-user/tenant so one user's ingested paper can't pollute another's retrieval.
+  **Done (Exp 21):** base corpus FROZEN (read-only, label-rot resolved at root); per-tenant overlay
+  collections (tenant = key id) for ingestion; retrieve merges base ∪ own overlay; episodic
+  tenant-stamped + filtered (cross-user memory leak closed). Isolation suite 8/8 (network-free
+  end-to-end ingest via synthetic PDF); prod two-key check passed. stage3-v13 (rev 19).
+  Deferred: per-tenant BM25; overlay durability → 4.3.
 - [ ] **3.3 Injection & poisoning defenses** — treat retrieved chunks and conversation history as
   untrusted input (they're interpolated into prompts today); sanitize/segregate; validate ingested
   content beyond the arXiv-id/title check.
