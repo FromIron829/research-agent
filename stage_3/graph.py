@@ -30,8 +30,9 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "stage_1"))
-from hybrid import retrieve_hybrid, add_chunks
-from retrieve import _collection, _openai_client, EMBED_MODEL, embed_query
+import chromadb
+from hybrid import retrieve_hybrid
+from retrieve import _collection, _openai_client, EMBED_MODEL, embed_query, CHROMA_DIR
 from extract import strip_references
 
 load_dotenv()
@@ -139,6 +140,7 @@ class GraphState(TypedDict):
     intent: str
     best_answer: str
     best_n_issues: int
+    tenant: str           # API-key identity = corpus/memory isolation boundary (3.2)
     summary: str          # running summary of turns older than the recent window (persists across turns)
     n_summarized: int     # how many history messages have already been folded into `summary`
     tokens_used: int
@@ -227,9 +229,31 @@ def propose_ingestion_node(state: GraphState):
     return {"candidate": cand,
             "answer": f"Not in corpus. Proposed: **{cand['title']}** ({cand['arxiv_id']})."}
 
+
+# ---------- Per-tenant overlay corpus (3.2) ----------
+# Base corpus = shared, READ-ONLY (frozen — Exp 18 label-rot ends here).
+# Each tenant's ingested papers live in their own collection: isolation by construction.
+_overlays = {}
+
+def _overlay(tenant: str):
+    if tenant not in _overlays:
+        _overlays[tenant] = chromadb.PersistentClient(path=str(CHROMA_DIR)).get_or_create_collection(
+            f"papers_overlay_{tenant}", metadata={"hnsw:space": "cosine"})
+    return _overlays[tenant]
+
+def _overlay_search(tenant: str, query: str, k: int = 5):
+    col = _overlay(tenant)
+    if col.count() == 0:
+        return []
+    res = col.query(query_embeddings=[embed_query(query)], n_results=min(k, col.count()))
+    return [{"chunk_id": cid, "arxiv_id": m["arxiv_id"], "paper_title": m["paper_title"],
+             "page": m["page"], "text": doc, "score": 1.0 - dist}
+            for cid, doc, m, dist in zip(res["ids"][0], res["documents"][0],
+                                         res["metadatas"][0], res["distances"][0])]
+
 # ---------- RAG retrieve ----------
-def _retrieve_from_paper(query: str, aid: str, k: int = 6):
-    res = _collection.query(query_embeddings=[embed_query(query)], n_results=k, where={"arxiv_id": aid})
+def _retrieve_from_paper(tenant: str, query: str, aid: str, k: int = 6):
+    res = _overlay(tenant).query(query_embeddings=[embed_query(query)], n_results=k, where={"arxiv_id": aid})
     return [{
         "chunk_id": cid, "arxiv_id": m["arxiv_id"], "paper_title": m["paper_title"],
         "page": m["page"], "text": doc, "score": 1.0 - dist,
@@ -253,13 +277,20 @@ def retrieve_node(state: GraphState):
                 seen.add(c["chunk_id"])
                 merged.append(c)
                 
+    tenant = state.get("tenant") or "public"
+    for q in sub_queries:
+        for c in _overlay_search(tenant, q, k=5):
+            if c["chunk_id"] not in seen:
+                seen.add(c["chunk_id"])
+                merged.append(c)
+
     aid = state.get("ingested_aid")
     if aid and not any(c["arxiv_id"] == aid for c in merged):
-        boost = _retrieve_from_paper(sub_queries[0], aid, k=6)
+        boost = _retrieve_from_paper(tenant, sub_queries[0], aid, k=6)
         merged = boost + merged
         print(f"[retrieve] boosted with {len(boost)} chunks from freshly-ingested {aid}")
 
-    print(f"[retrieve] sub_queries={sub_queries} -> {len(merged)} chunks")
+    print(f"[retrieve] tenant={tenant} sub_queries={sub_queries} -> {len(merged)} chunks")
     return {"chunks": merged, "query": sub_queries[0]}
 
 # ---------- Tools ----------
@@ -429,7 +460,7 @@ def route_intent_node(state: GraphState):
     return {"intent": intent, "tokens_used": state.get("tokens_used", 0) + _usage(msg)}
 
 def recall_node(state: GraphState):
-    hists = episodic.recall(state["question"], k=3)
+    hists = episodic.recall(state["question"], k=3, tenant=state.get("tenant") or "public")
     if not hists:
         answer = "I don't have any earlier conversations stored to recall from yet."
         return {"answer": answer,
@@ -668,7 +699,8 @@ def respond_node(state: GraphState, config):
         answer = state.get("best_answer") or state.get("first_answer") or state["answer"]
         print(f"[respond] ungrounded after cap -> returning best attempt "
               f"({state.get('best_n_issues')} issue(s))")
-    episodic.remember_turn(config["configurable"]["thread_id"], state["question"], answer)
+    episodic.remember_turn(config["configurable"]["thread_id"], state["question"], answer,
+                           tenant=state.get("tenant") or "public")
     return {"answer": answer,
             "history": [{"role": "user", "content": state["question"]},
                         {"role": "assistant", "content": answer}]}
@@ -717,22 +749,15 @@ def ingest_node(state: GraphState):
 
     texts = [d.page_content for d in splits]
     embs = _openai_client.embeddings.create(model=EMBED_MODEL, input=texts).data
-    _collection.upsert(
+    tenant = state.get("tenant") or "public"
+    _overlay(tenant).upsert(
         ids=[f"{aid}_{i:04d}" for i in range(len(splits))],
         embeddings=[e.embedding for e in embs],
         documents=texts,
         metadatas=[{"arxiv_id": aid, "paper_title": cand["title"], "page": d.metadata["page"]} for d in splits],
     )
-    new_chunks = [{
-        "chunk_id": f"{aid}_{i:04d}",
-        "arxiv_id": aid,
-        "paper_title": cand["title"],
-        "page": d.metadata["page"],
-        "text": d.page_content,
-    } for i, d in enumerate(splits)]
-    add_chunks(new_chunks)
-
-    print(f"[ingest] upserted into '{_collection.name}' -> now includes {cand['title']}")
+    # Base corpus + BM25 index are FROZEN (shared, read-only) — overlay is vector-only by design.
+    print(f"[ingest] upserted into overlay 'papers_overlay_{tenant}' -> now includes {cand['title']}")
     return {"ingested": True,
             "ingested_aid": aid,
             "attempts": 0, 
@@ -856,9 +881,9 @@ def _make_checkpointer():
 
 graph = builder.compile(checkpointer=_make_checkpointer())
 
-def fresh_turn(question: str):
+def fresh_turn(question: str, tenant: str = "public"):
     return {
-        "question": question, "query": "", "rewritten_query": "", "sub_queries": [], "chunks": [], "relevant": False, "attempts": 0,
+        "question": question, "tenant": tenant, "query": "", "rewritten_query": "", "sub_queries": [], "chunks": [], "relevant": False, "attempts": 0,
         "first_answer": "", "answer": "", "grounded": False, "issues": "", "gen_attempts": 0,
         "candidate": {}, "approved": False, "ingested": False, "ingested_aid": "", "intent": "", "best_answer": "", "best_n_issues": None,
         "tokens_used": 0,

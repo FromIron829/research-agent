@@ -94,7 +94,7 @@ def ask(request: Request, req: AskRequests, ident=Depends(require_key)):
         thread_id = str(uuid.uuid4())
         auth.claim_thread(thread_id, key_id)
     config = {"configurable": {"thread_id": thread_id}}
-    result = graph.invoke(fresh_turn(req.question), config=config)
+    result = graph.invoke(fresh_turn(req.question, key_id), config=config)
     return _format(result, thread_id)
 
 @app.post("/resume")
@@ -127,7 +127,7 @@ def ask_stream(request: Request, req: AskRequests, ident=Depends(require_key)):
     def events():
         yield _sse({"event": "start", "thread_id": thread_id})
         final = {}
-        for update in graph.stream(fresh_turn(req.question), config=config,
+        for update in graph.stream(fresh_turn(req.question, key_id), config=config,
                                    stream_mode="updates"):
             for node, out in update.items():
                 if node == "__interrupt__":
