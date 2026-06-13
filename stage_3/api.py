@@ -13,13 +13,15 @@ from typing import Optional
 import anthropic
 from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
 import auth
+import feedback
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from graph import graph, fresh_turn
+from graph import graph, fresh_turn, PROMPT_VERSION, MODEL
 from langgraph.types import Command
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 auth.init()
+feedback.init()
 _key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 def require_key(key: str = Security(_key_header)):
@@ -59,11 +61,25 @@ class ResumeRequest(BaseModel):
 class MintRequest(BaseModel):
     name: str
 
-def _format(result: dict, thread_id: str):
+class FeedbackRequest(BaseModel):
+    response_id: str
+    rating: int                       # +1 thumbs up / -1 thumbs down
+    comment: Optional[str] = None
+
+def _log_response(state: dict, thread_id: str, key_id: str) -> str:
+    """Log a terminal answer at the API boundary (the one choke point all answer paths share)."""
+    return feedback.log_response(
+        thread_id=thread_id, key_id=key_id, tenant=state.get("tenant") or key_id,
+        question=state.get("question", ""), answer=state.get("answer", ""),
+        prompt_version=state.get("prompt_version") or PROMPT_VERSION, model=MODEL,
+        grounded=state.get("grounded"), tokens_used=state.get("tokens_used"))
+
+def _format(result: dict, thread_id: str, key_id: str):
     if "__interrupt__" in result:
         intr = result["__interrupt__"][0]
         return {"status": "approval_needed", "prompt": intr.value["prompt"], "thread_id": thread_id}
-    return {"status": "done", "answer": result["answer"], "thread_id": thread_id}
+    rid = _log_response(result, thread_id, key_id)
+    return {"status": "done", "answer": result["answer"], "thread_id": thread_id, "response_id": rid}
 
 def _authorize_thread(thread_id: str, key_id: str):
     owner = auth.thread_owner(thread_id)
@@ -95,17 +111,18 @@ def ask(request: Request, req: AskRequests, ident=Depends(require_key)):
         auth.claim_thread(thread_id, key_id)
     config = {"configurable": {"thread_id": thread_id}}
     result = graph.invoke(fresh_turn(req.question, key_id), config=config)
-    return _format(result, thread_id)
+    return _format(result, thread_id, key_id)
 
 @app.post("/resume")
 @limiter.limit("5/minute;50/day")
 def resume(request: Request, req: ResumeRequest, ident=Depends(require_key)):
-    _authorize_thread(req.thread_id, ident[0])   # ownership FIRST: strangers learn nothing
+    key_id = ident[0]
+    _authorize_thread(req.thread_id, key_id)   # ownership FIRST: strangers learn nothing
     config= {"configurable": {"thread_id": req.thread_id}}
     if not graph.get_state(config).next:
         raise HTTPException(status_code=409, detail="No pending approval on this thread.")
     result = graph.invoke(Command(resume=req.decision), config=config)
-    return _format(result, req.thread_id)
+    return _format(result, req.thread_id, key_id)
 
 @app.exception_handler(anthropic.APIError)
 def llm_unavailable(request: Request, exc: anthropic.APIError):
@@ -126,7 +143,6 @@ def ask_stream(request: Request, req: AskRequests, ident=Depends(require_key)):
     
     def events():
         yield _sse({"event": "start", "thread_id": thread_id})
-        final = {}
         for update in graph.stream(fresh_turn(req.question, key_id), config=config,
                                    stream_mode="updates"):
             for node, out in update.items():
@@ -134,12 +150,32 @@ def ask_stream(request: Request, req: AskRequests, ident=Depends(require_key)):
                     yield _sse({"event": "approval_needed",
                                 "prompt": out[0].value["prompt"], "thread_id": thread_id})
                     return
-                final = out or final
                 yield _sse({"event": "node", "node": node})
-        yield _sse({"event": "answer", "answer": final.get("answer", ""),
-                    "thread_id": thread_id})
+        # The stream yields per-node *partial* updates; pull the full final state for logging.
+        state = graph.get_state(config).values
+        rid = _log_response(state, thread_id, key_id)
+        yield _sse({"event": "answer", "answer": state.get("answer", ""),
+                    "thread_id": thread_id, "response_id": rid})
     
     return StreamingResponse(events(), media_type="text/event-stream")
+
+@app.post("/feedback")
+@limiter.limit("30/minute;500/day")
+def submit_feedback(request: Request, req: FeedbackRequest, ident=Depends(require_key)):
+    key_id = ident[0]
+    owner = feedback.response_owner(req.response_id)
+    if owner is None:
+        raise HTTPException(status_code=404, detail="Unknown response.")
+    if owner != key_id:
+        raise HTTPException(status_code=403, detail="Not your response.")
+    fid = feedback.record_feedback(req.response_id, key_id, req.rating, req.comment)
+    return {"status": "recorded", "feedback_id": fid}
+
+@app.get("/admin/quality")
+def quality(request: Request, ident=Depends(require_key)):
+    if not ident[1]:
+        raise HTTPException(status_code=403, detail="Admin only.")
+    return feedback.quality_summary()
 
 @app.post("/admin/keys")
 def mint_key(request: Request, req: MintRequest, ident=Depends(require_key)):

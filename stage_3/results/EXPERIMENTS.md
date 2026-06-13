@@ -1149,3 +1149,502 @@ control-flow (the router); caching + all gates survive the prompt-structure chan
   ("please disregard…") — that's left to the spotlighting instruction + model.
 - The question field is intentionally unsanitized (self-attack only); revisit if questions ever feed
   a higher-privilege action.
+
+---
+
+## Experiment 23 — Online feedback loop + response log (Roadmap Phase 4.1a)
+
+**Date:** 2026-06-13
+**Code:** `stage_3/feedback.py` (new), `stage_3/api.py` (`/feedback`, `/admin/quality`, response logging),
+`stage_3/graph.py` (`PROMPT_VERSION`), `stage_3/static/index.html` (👍/👎 bar)
+
+### Setup
+
+Phases 0–3 made the agent durable, observable, and secure, but it is **blind to its own quality in
+production**: the offline per-node evals (Exp 1–22) measure components on fixed labels, and LangSmith
+captures cost/latency, but nothing captures *whether users found a given answer good*. Phase 4.1 adds
+the online half of the quality lifecycle. This subtask (4.1a) builds the **feedback loop**; 4.1b will
+add the eval-gated CI that turns these signals into a deploy gate.
+
+Design:
+- **`responses` log** — every terminal answer (corpus, follow-up, recall, resume) is written with a
+  minted `response_id`, plus the attribution needed to later explain a 👎: `thread_id`, `key_id`,
+  `tenant`, `question`, `answer`, `prompt_version`, `model`, `grounded`, `tokens_used`, `created_at`.
+  This row is the join key between *who asked what under which prompt/model version* (the seam 4.2
+  formalizes) and *what they thought of it*.
+- **`feedback` table** — `(response_id, key_id, rating ∈ {+1,−1}, comment)`. Capture point: a 👍/👎 bar
+  under each answer in the web UI, posting to `POST /feedback`.
+- **Logging at the API boundary, not in the graph.** Three different nodes END with an answer
+  (`respond`, `answer_from_history`, `recall`); the single choke point where *all* paths converge with
+  a full final state is `api.py` after `graph.invoke`/the stream completes. Logging there keeps
+  `graph.py` a pure reasoning machine and guarantees no answer path is silently unlogged.
+- **`GET /admin/quality`** — online monitor: counts, 👍/👎 split, and a per-`prompt_version` breakdown,
+  so a prompt change's effect on the thumbs-down rate is visible (the input 4.2's A/B needs).
+- Dual backend (SQLite dev / Postgres prod) mirroring `auth.py`; durable in prod because it rides the
+  same RDS the checkpointer + auth already use (unlike Chroma overlays, which are still ephemeral →
+  4.3).
+
+### Hypothesis
+
+1. **Every answer path gets a stable id.** All four terminal paths return a `response_id`; an answer
+   the user can see is always an answer the user can rate. No `None`/missing-id holes.
+2. **Feedback fails closed on the forced paths** (the project's testing ethos — exercise the failure
+   modes, not the happy path): feedback on a non-existent `response_id` → **404**; feedback from a key
+   that doesn't own the response → **403** (a tenant can't skew another tenant's online eval); a valid
+   owner → **200** and one persisted row. Mirrors the thread-ownership model from 3.1.
+3. **The monitor is attribution-ready.** `/admin/quality` returns a per-`prompt_version` 👍/👎 split, so
+   the moment 4.2 stamps a new version the regression signal is already wired — no schema change later.
+4. **No regression to the answer paths.** Adding a logging call + an id field changes neither the
+   answer text nor the existing `status`/`thread_id` contract; the UI still streams and resumes.
+
+### Result — 12/12 forced-path checks (no LLM calls; `/feedback` doesn't invoke the graph).
+
+Two distinct keys minted in the dev store; a response logged as owned by `k1`; then the loop
+driven through `TestClient`:
+
+| Hypothesis | Probe | Outcome |
+|---|---|---|
+| H1 stable id | `log_response` → `r_…`; `response_owner(rid)` | id minted; resolves to producing key ✅ |
+| H2 unknown | `response_owner("r_doesnotexist")` / `POST` it | `None` / **404** ✅ |
+| H2 no key | `POST /feedback` keyless | **401** ✅ |
+| H2 bad key | `POST` with `ra_bogus` | **403** ✅ |
+| H2 cross-tenant | `k2` rates `k1`'s response | **403** ✅ |
+| H2 owner | `k1` rates own response | **200** `recorded`, 1 row ✅ |
+| H3 monitor authz | non-admin `GET /admin/quality` | **403** ✅ |
+| H3 attribution | `quality_summary()` | `by_prompt_version["stage3-prompts-v1"] = {up:1,down:0,rated:1}` ✅ |
+
+`import api` succeeded end-to-end (it pulls `graph` → Chroma + checkpointer), so the
+`PROMPT_VERSION`/`MODEL` imports and the boundary-logging wiring are sound. The 4 answer paths
+(`respond`, `answer_from_history`, `recall`, `/resume`) all converge on `_format`/the stream's
+`get_state` tail, so each returns a `response_id` — verified by construction; a live `/ask` smoke is
+the only remaining (LLM-billed) check and is deferred to the deploy verification.
+
+### Interpretation
+
+1. **Logging at the API boundary, not in the graph, was the right call.** Three nodes END with an
+   answer; putting the log call at the single boundary where the full final state is in hand
+   (`graph.invoke`'s return / `get_state(config).values` after the stream) means no path can ship an
+   unlogged answer, and `graph.py` stays a pure reasoning machine. The streaming case needed the
+   explicit `get_state` pull because `stream_mode="updates"` only yields *partial* per-node dicts.
+2. **The feedback table reuses the 3.1 ownership model verbatim** — `response_owner` mirrors
+   `thread_owner`, and the 404-before-403 ordering (unknown vs. not-yours) keeps strangers from
+   probing which response_ids exist. Online eval is a new attack surface (a rival tenant skewing your
+   thumbs-down rate); the same fence closes it.
+3. **`prompt_version` in the response row is the seam 4.2 snaps into.** The monitor already groups by
+   it, so the day a prompt variant ships, the regression signal needs no schema change — only a
+   constant bump. 4.1 and 4.2 were designed as one data model split across two experiments.
+4. **This is the first signal the offline evals can't give.** Exp 1–22 grade components on fixed
+   labels; this is the first measurement of *whether a real user liked a real answer in prod* — the
+   raw material 4.1b turns into a deploy gate.
+
+### Decision
+
+- **4.1a complete.** Online feedback loop shipped: `responses` log + `feedback` table (dual backend,
+  durable on the prod RDS), `POST /feedback` (ownership-fenced), `GET /admin/quality` monitor, and a
+  👍/👎 bar in the web UI. Not yet deployed — batch with 4.1b (eval-gated CI) so one redeploy carries
+  the whole 4.1 unit. **Next: 4.1b** — `run_all.py` scorecard + baseline-regression gate + GitHub
+  Actions (free lint/import on every push; keys-gated LLM-eval job that goes red on a dangerous-error
+  regression).
+
+### Known limitations
+
+- Feedback is single-rating per click with no de-dup: a user can 👍 then 👎 the same response and both
+  rows persist (the UI disables the buttons after one click, but the API doesn't enforce one-per-key).
+  Fine for a low-traffic demo; a `UNIQUE(response_id, key_id)` upsert is the prod hardening.
+- No live-traffic *sampling for human review* yet (the roadmap's "sample live traffic" clause) — the
+  log captures everything; a sampler/review queue is deferred until volume justifies it.
+- `quality_summary` is a full-table aggregate (no time window / no pagination) — fine at demo scale,
+  needs a date filter before the responses table grows large.
+
+---
+
+## Experiment 24 — Eval-gated CI: scorecard + baseline-regression gate (Roadmap Phase 4.1b)
+
+**Date:** 2026-06-13
+**Code:** `stage_3/eval/run_all.py` (new), `stage_3/eval/baseline.json` (new), per-eval `run()` now
+returns a scorecard dict, `stage_1/retrieve.py` (import-safe collection load),
+`.github/workflows/ci.yml` + `eval-gate.yml` (new)
+
+### Setup
+
+4.1a captured *online* quality (👍/👎). This subtask adds the *offline* gate: turn the per-node evals
+(Exp 1–22), which a human ran ad-hoc and eyeballed, into a **machine verdict that blocks a regression**.
+
+- **One gate metric: the DANGEROUS-error count.** The project has always split errors into
+  *dangerous* (out-of-corpus answered from junk, fabrication passed, should-fetch entity dropped) vs.
+  *safe/wasteful* (over-retrieval). The gate watches only the dangerous column: a run fails iff any
+  node's dangerous count **exceeds** its committed baseline. Safe metrics are printed, not gated — we
+  refuse to fail a build for getting *more cautious*.
+- **`run_all.py`** imports each eval's `run()` (now returning `{name, n, dangerous, metrics}`),
+  assembles a scorecard, diffs it against `baseline.json`, and `exit(1)` on any dangerous regression.
+  `--update-baseline` re-baselines (merge, so a `--ci` run doesn't drop the local-only evals).
+- **The CI-feasibility problem, stated honestly.** Importing `graph` transitively imported
+  `retrieve.py`, which did `get_collection("papers")` at module load — a hard crash without the 45 MB
+  `chroma_db` (gitignored). So *no* eval could even import on a clean runner. Fix: a behavior-identical
+  guard (try `get_collection`, except → empty `get_or_create_collection`). `chunks.json` (3.8 MB) **is**
+  committed, so BM25 builds; only the vector store was the blocker. With that, the four **index-free**
+  evals (router, planner, grounding-synthesis, keep-best — LLM-only nodes or fixture chunks) run in CI
+  with just an API key. relevance + episodic need the populated index → local-only until 4.3.
+- **Two workflows, split by cost.** `ci.yml`: free, every push — `py_compile` + import-smoke of the
+  key-free modules (`auth`, `feedback`) + advisory `ruff`. `eval-gate.yml`: secrets-gated,
+  `workflow_dispatch` + nightly — `run_all.py --ci`, red on a dangerous regression.
+
+### Hypothesis
+
+1. **Import-decoupling holds both ways.** With the index present (local) behavior is byte-identical
+   (the `try` branch is taken); with it absent (CI) `graph` imports against an empty collection and the
+   four index-free evals still run and score.
+2. **The scorecard is stable at zero dangerous.** Re-running the four evals reproduces the
+   long-standing result: `dangerous = 0` for router, planner, grounding-synthesis, keep-best (the
+   counts the log has reported clean since Exp 3–6). That clean state is what `baseline.json` captures.
+3. **The gate is a real gate — it fails on a regression, not just passes when green.** Against the
+   honest baseline a clean run exits 0; after tampering the baseline so a node's allowed dangerous
+   count is lower than reality, the same scorecard exits 1 and names the regressed node. A gate only
+   proven to pass is not proven to gate.
+4. **No cross-eval contamination in a full suite.** `test_keep_best` stubs `episodic.remember_turn`;
+   restoring it in `run()` means a later `eval_episodic` in the same process still seeds + recalls.
+
+### Result — gate verified both directions; both CI tiers green locally.
+
+**Scorecard (the four index-free evals, real Anthropic calls), all DANGEROUS = 0** — reproducing the
+clean state since Exp 3–6, now machine-captured as `baseline.json`:
+
+| node | n | dangerous | secondary |
+|---|---|---|---|
+| router | 17 | **0** | accuracy 1.0, safe 0 |
+| planner | 9 | **0** | clean 9, wasteful 0 |
+| grounding_synthesis | 5 (×3) | **0** | false-positives 0 (3 syn / 2 fab) |
+| keep_best | 6 | **0** | 6/6 checks |
+
+**The gate gates (H3).** `gate()` driven both ways against the honest baseline:
+- clean scorecard → **0 regressions** (exit 0);
+- one node nudged `dangerous 0 → 1` → **`[('router', 0, 1)]`, exit 1**, naming the regressed node.
+
+**Import-decoupling (H1).** `run_all --ci` imported `graph` and ran all four evals locally with the
+index present (the `try: get_collection` branch). `py_compile` across `stage_3/*.py`, `eval/*.py`,
+and the two touched `stage_1` modules passed; the key-free import smoke (`auth` + `feedback`) passed —
+the two checks `ci.yml` runs on every push, both green with no corpus and no API key.
+
+### Interpretation
+
+1. **The honest CI story is the interesting one.** "Run the evals in CI" sounds trivial; it wasn't,
+   because `graph` import hard-crashed without a 45 MB gitignored index. Naming that, fixing the import
+   coupling with a behavior-identical guard, and *splitting the suite by what a clean runner can
+   actually do* (index-free in CI, index-dependent local) is the real engineering — and it surfaces a
+   genuine dependency: full eval-in-CI is **blocked on 4.3** (a managed vector store the runner can
+   reach), not on writing more YAML.
+2. **Gating on the dangerous column, not accuracy, matches the whole project's grain.** A build should
+   fail for letting a fabrication through, never for getting more cautious. The scorecard reports the
+   safe metrics so a drift is *visible*, but only the dangerous count is *load-bearing*.
+3. **A gate proven only to pass is theater.** Forcing the fail path (and asserting it names the node)
+   is what makes this a gate rather than a green checkmark that would stay green through a real
+   regression — the same "exercise the failure path" discipline as 4.1a's 404/403 probes.
+4. **Two-tier CI is the right cost split.** Every push gets a free, instant signal (syntax + wiring);
+   the LLM evals — which cost money and need secrets — run nightly / on demand. You don't pay per push
+   to learn the prompts still behave.
+
+### Decision
+
+- **4.1b complete → 4.1 (online eval + feedback loop) COMPLETE.** `run_all.py` scorecard +
+  `baseline.json` dangerous-regression gate; `ci.yml` (free, every push) + `eval-gate.yml` (secrets,
+  nightly/dispatch). Each eval `run()` now returns a scorecard; `retrieve.py` import is corpus-optional.
+  **Next: 4.2** — formalize `PROMPT_VERSION` + model stamping into a small A/B switch, reading the
+  `responses`/`feedback` tables 4.1a already populates. Then 4.4 (corpus lifecycle); **4.3 paused for
+  the pgvector/AWS go-ahead.**
+- **To activate `eval-gate.yml`:** add `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` as repo secrets
+  (Settings → Secrets → Actions). Without them the nightly job errors at the first LLM call; `ci.yml`
+  needs nothing.
+
+### Known limitations
+
+- **LLM-eval flakiness vs. a strict gate.** The graders are stochastic (grounding-synthesis samples
+  N=3); a rare flip could tick a `dangerous` count to 1 and red the build on noise, not a real
+  regression. Mitigations not yet built: majority-of-3 re-runs at the gate, or a small tolerance band.
+  Today the gate is strict — defensible because these four have been 0-dangerous across many runs.
+- **CI runs 4 of 6 evals.** relevance + episodic (index-dependent) are local-only until 4.3 gives the
+  runner a managed store; the baseline merge-logic already reserves their slots.
+- The nightly gate has no historical scorecard store (no trend line) — it compares to a single
+  committed baseline. A time series → 4.x if online monitoring justifies it.
+
+---
+
+## Experiment 25 — Prompt/model versioning + A/B framework (Roadmap Phase 4.2)
+
+**Date:** 2026-06-13
+**Code:** `stage_3/graph.py` (`PROMPTS` registry, `resolve_prompt_version`, variant-aware
+`_cache_context`, `prompt_version` in state/`fresh_turn`), `stage_3/api.py` (stamp resolved version),
+`stage_3/eval/run_all.py` (`--prompt-version`), `stage_3/feedback.py` (per-version A/B summary)
+
+### Setup
+
+Versioning the prompt has been an open thread since **Stage 2** (a prompt edit could change behavior
+with nothing recording *which* prompt produced a response). 4.1a started closing it by stamping a
+constant `PROMPT_VERSION`; 4.2 makes the version **resolvable per request** and adds the machinery to
+run a controlled experiment between two prompts.
+
+- **Registry, not a constant.** `PROMPTS = {v1, v2}`. `CORE_SYSTEM` is *composed* from `_CORE_BASE +
+  [variant extra] + _SECURITY`, so **every** variant inherits the 3.3 SECURITY clause — an A/B arm
+  physically cannot ship without injection hardening. v1 is byte-identical to the pre-4.2 prompt;
+  v2 adds one answer-first style directive (an illustrative-but-real variant).
+- **Deterministic A/B assignment.** `resolve_prompt_version(tenant)` buckets by `sha256(tenant) % 100`
+  against `PROMPT_AB_PERCENT`, choosing `PROMPT_AB_VERSION`. Hashing the tenant keeps a user on a
+  *stable* arm across turns, so their 👍/👎 is cleanly attributable. Off by default → everyone on v1.
+- **One resolution path, three consumers.** `_cache_context` resolves `state.prompt_version` (runtime)
+  → `RA_PROMPT_VERSION` env (eval) → default. Runtime sets it once in `fresh_turn`; the response is
+  stamped with the *resolved* version (api boundary); `run_all.py --prompt-version v2` sets the env so
+  a variant can be **eval-gated before rollout** — the literal "prompt changes are provably
+  non-regressive" requirement.
+- **Cache + injection invariants must survive.** The variant changes `CORE_SYSTEM` (the cached prefix's
+  first block). Because the version is fixed per turn, all three heavy nodes in a request still share a
+  byte-identical prefix → 2.5 caching holds (two cache pools, one per arm). Fences/sanitizer live in
+  the *second* block, untouched.
+- **Comparison surface.** `feedback.quality_summary()` now reports per-version `{responses, avg_tokens,
+  up, down, satisfaction}` — the head-to-head (quality *and* cost) a rollout decision needs.
+
+### Hypothesis
+
+1. **Default is a no-op.** With no `PROMPT_AB_*` env, `resolve_prompt_version` returns v1 for every
+   tenant, and v1's text is byte-identical to the pre-4.2 `CORE_SYSTEM` → zero behavior change for
+   existing traffic.
+2. **Assignment is deterministic and tunable.** With `PROMPT_AB_VERSION=v2, PERCENT=100` every tenant
+   resolves to v2; at `PERCENT=50` the split is deterministic per tenant (same tenant → same arm on
+   repeat) and lands near half.
+3. **The variant actually reaches the model, both routes.** `_cache_context` emits v2's text when the
+   state carries `prompt_version=v2` (runtime) OR when only `RA_PROMPT_VERSION=v2` is set (eval) —
+   and v1's text otherwise.
+4. **Invariants intact.** (a) Both variants contain the SECURITY clause (3.3 cannot be dropped by an
+   arm). (b) Repeat `_cache_context` calls for the same state yield a byte-identical first block
+   (2.5 cache key stable within an arm).
+5. **Cost/quality is attributable.** `quality_summary` separates two versions' responses, avg tokens,
+   and satisfaction.
+
+### Result — 15/15 deterministic checks + the eval gate confirms non-regression.
+
+| H | check | outcome |
+|---|---|---|
+| H1 | default resolves v1; v1 == pre-4.2 `CORE_SYSTEM`; `fresh_turn` stamps v1 | ✅ |
+| H2 | `PERCENT=100` → all v2; `PERCENT=50` deterministic per tenant, **46%** on v2 | ✅ |
+| H3 | v2 reaches the model via state (runtime) **and** via `RA_PROMPT_VERSION` (eval); default → v1 | ✅ |
+| H4 | SECURITY clause in **both** arms; repeat `_cache_context` → byte-identical first block | ✅ |
+| H5 | `quality_summary` splits v1 vs v2: satisfaction 0.0 / 1.0, avg_tokens 1000 / 600 | ✅ |
+
+Then `run_all.py --ci` against the Exp 24 baseline: **all four nodes dangerous=0, exit 0** — the prompt
+refactor that introduced the registry changed nothing the gate watches. (The four CI evals that touch
+`CORE_SYSTEM` — grounding-synthesis, keep-best — ran through the new resolution path and held.)
+
+### Interpretation
+
+1. **Composition, not duplication, makes the safety guarantee structural.** Because `CORE_SYSTEM =
+   base + [variant] + _SECURITY`, the SECURITY clause isn't *remembered* into each variant — it's
+   *concatenated* into every one. A future arm can't ship without 3.3 hardening even by accident; the
+   test asserts it, but the construction enforces it.
+2. **One resolution function, three call sites, no divergence.** Runtime (state), eval
+   (`RA_PROMPT_VERSION`), and the response stamp all read the same `prompt_version`, so what the user
+   got, what the monitor records, and what the gate can re-test are guaranteed to be the same prompt.
+   That closes the Stage-2 gap directly: a response now *names* the prompt that produced it.
+3. **A/B and prompt caching are compatible, not in tension.** The variant lives in the cached prefix's
+   first block, but the version is fixed per turn, so a request's three heavy calls still share one
+   byte-identical prefix — caching reuses *within* an arm; the two arms just keep separate cache pools.
+   Verified by the byte-identity check and the green gate (cache-dependent groundedness eval unchanged).
+4. **The framework is the deliverable; the v2 prompt is a placeholder.** What ships is the *mechanism*
+   to run a controlled prompt experiment with attributable quality+cost — not a claim that answer-first
+   beats the control. Running `--prompt-version v2` through the gate (non-regressive) is the pre-rollout
+   safety check; `quality_summary`'s per-arm split is the post-rollout decision signal.
+
+### Decision
+
+- **4.2 complete.** Prompt suite is a versioned registry with deterministic, env-tunable A/B
+  assignment; the resolved version flows runtime → response stamp → eval, and is comparable per-arm
+  (quality + cost) in the monitor. The Stage-2 "which prompt produced this?" gap is closed.
+  **Next: 4.4** (corpus lifecycle — ingest dedup, version handling, overlay eviction). **4.3 (pgvector
+  durability) remains paused for the AWS/cost go-ahead.**
+- **To run an experiment:** set `PROMPT_AB_VERSION=stage3-prompts-v2` + `PROMPT_AB_PERCENT=20` in the
+  task env, gate the variant first with `run_all.py --ci --prompt-version stage3-prompts-v2`, then
+  watch `GET /admin/quality`.
+
+### Known limitations
+
+- Model is still single (`MODEL` constant) — versioning stamps the model id per response but there's no
+  model-level A/B (no fallback/alt-model arm). The seam is there (`model` column); only the registry is
+  prompt-side today.
+- Variant assignment is by tenant (stable per user) — not per-request randomized — so small-N demos
+  can land lopsided; fine for attributable feedback, not for a fast-converging online experiment.
+- No automatic winner promotion / stats test — `quality_summary` shows the split; the rollout decision
+  is still a human reading it.
+
+---
+
+## Experiment 26 — Corpus lifecycle: dedup, versioning, eviction (Roadmap Phase 4.4)
+
+**Date:** 2026-06-13
+**Code:** `stage_3/graph.py` — `_normalize_aid`/`_aid_version`/`_base_aids`/`_overlay_papers`/
+`_lifecycle_decision`/`_evict_if_needed`, lifecycle gate in `ingest_node`
+
+### Setup
+
+The ingest path (3.2) had no memory of what it already held: approve the same paper twice and it
+re-downloads, re-embeds, and writes duplicate chunks; nothing bounded a tenant's overlay; an arXiv
+**v2** was just a different id from **v1**. 4.4 adds the lifecycle controls a writable corpus needs,
+all on the overlay (base stays frozen).
+
+- **Version-normalized identity.** `_normalize_aid` strips the `vN` suffix → a stable logical-paper id,
+  so `2310.11453v1` and `v2` are the *same paper*. Dedup and replacement key off the normalized id.
+- **Three-way ingest decision** (`_lifecycle_decision(tenant, aid)` → `skip|replace|ingest`):
+  - already in the **frozen base corpus** (checked against the 77-entry manifest) → **skip** (no
+    overlay copy of a base paper);
+  - already in the tenant's **overlay**, same/older version → **skip**;
+  - in the overlay at an **older** version than proposed → **replace** (delete the old chunks, ingest
+    the new version);
+  - otherwise → **ingest**.
+- **Bounded overlays.** `OVERLAY_MAX_PAPERS = 20`; before adding a *new* paper, `_evict_if_needed`
+  drops the oldest-ingested paper (an `ingested_at` stamp now rides every chunk's metadata). Replacement
+  doesn't evict (net paper count is unchanged).
+- **Wired into `ingest_node` before the network call** — skip returns the loop-back state so the graph
+  answers from the existing corpus instead of paying for a redundant download.
+
+### Hypothesis
+
+1. **Base-corpus papers are never overlaid.** A proposed `aid` whose normalized id is in the manifest
+   → `skip`, regardless of the proposed version (`v2` of a base `v1` still skips).
+2. **Overlay dedup is version-aware.** Re-proposing an already-ingested paper at the same version →
+   `skip`; at a newer version → `replace` (and the replace path deletes exactly the old chunk ids,
+   leaving one logical paper, now at the new version).
+3. **A genuinely new paper → `ingest`.**
+4. **Eviction bounds the overlay.** With the overlay at the cap, ingesting a new paper first evicts the
+   **oldest** (by `ingested_at`), so the paper count never exceeds `OVERLAY_MAX_PAPERS` and the evicted
+   one is the least-recently ingested — not a random or newest one.
+
+### Result — 12/12, network-free (synthetic overlay; no download, no LLM, base untouched).
+
+| H | check | outcome |
+|---|---|---|
+| — | `_normalize_aid`/`_aid_version` strip & parse `vN`; manifest aid ∈ base | ✅ |
+| H1 | base paper → skip, **including a newer version** of a base paper | ✅ |
+| H3 | brand-new aid (empty overlay) → ingest | ✅ |
+| H2 | overlay same version → skip; older → **replace** | ✅ |
+| H2 | replace targets **exactly** the old chunk ids (`v1_0000`, `v1_0001`) | ✅ |
+| H4 | at cap (3), `_evict_if_needed` drops to 2 and evicts the **oldest** (`ingested_at=100`), keeps 200+300 | ✅ |
+
+### Interpretation
+
+1. **Version-normalized identity is the keystone.** Keying dedup/replace on the logical id (strip `vN`)
+   is what lets "is this already here?" and "is this a newer version?" both be one cheap lookup, and
+   what stops a base paper's v2 from being needlessly overlaid. One small normalization unlocks all
+   three lifecycle behaviors.
+2. **The cheapest ingest is the one you skip.** The gate sits *before* the network call, so a duplicate
+   approval costs a metadata lookup, not a PDF download + a few hundred embeddings. Skip returns the
+   loop-back state, so the user still gets an answer from the corpus that already had the paper.
+3. **Eviction is least-recently-ingested, not arbitrary.** Stamping `ingested_at` on every chunk turns
+   "bound the overlay" into a defined policy (drop the oldest) rather than whatever Chroma returns
+   first — and replace doesn't evict, because swapping a version isn't net growth.
+4. **All of it stays inside the 3.2 isolation boundary.** Every lifecycle op is per-tenant on the
+   overlay; the frozen base is only ever *read* (manifest membership). Dedup against base + dedup within
+   the tenant compose without a shared writable surface.
+
+### Decision
+
+- **4.4 complete.** Ingest now dedups (base + overlay, version-aware), replaces stale versions, and
+  bounds overlays by eviction. **This was the last code-only Phase 4 subtask.** Remaining: **4.3
+  (retrieval at scale — pgvector durability)**, which needs the AWS/cost decision and a redeploy —
+  paused for go-ahead. With 4.3's durability, the eviction/version state becomes persistent rather than
+  resetting on container restart.
+
+### Known limitations
+
+- **Overlays are still ephemeral on Fargate** (the 3.2/4.1b carry-over): dedup/version/eviction state
+  lives in the same container-disk Chroma that a redeploy wipes. 4.3 (managed store) makes it durable;
+  until then the lifecycle is correct but per-container.
+- Eviction is **paper-count** based, not size/token based, and runs only at ingest time (no background
+  TTL). Fine for the cap's purpose (bound a runaway tenant); a byte-budget would be the prod refinement.
+- `replace` keeps only the newest version — no history/rollback. Acceptable for a research corpus where
+  the latest arXiv version is canonical.
+- Base-membership is checked against the **manifest**, not a live query of the base collection — correct
+  as long as the manifest and the indexed base stay in sync (they're built from it).
+
+---
+
+## Experiment 27 — Durable vector store on pgvector (Roadmap Phase 4.3)
+
+**Date:** 2026-06-13
+**Code:** `stage_3/vectorstore.py` (new — dual backend), `stage_3/graph.py` (`_overlay` →
+`vectorstore`), `stage_3/episodic.py` (`_conversations` → `vectorstore`), `pgvector` dependency
+
+### Setup
+
+Since Phase 1 the writable corpora — per-tenant **overlays** (3.2) and **episodic memory** (0.6) —
+have lived in Chroma on the container's local disk, so a Fargate redeploy **wipes a user's ingested
+papers and their conversation history**. (Flagged at 1.4, 3.2, 4.1b, 4.4.) 4.3 makes them durable.
+
+**Scoping decision — the engineering crux.** Durability only matters for data you *can't rebuild*. The
+**base corpus is frozen and reproducible** from committed artifacts (`chunks.json` + `manifest.json` →
+`embed_and_index.py`), so it stays on Chroma — migrating 45 MB of base index into Postgres would
+rewrite the retrieval path the *entire live demo* depends on, to add durability to something already
+reproducible. So 4.3 moves **only the overlays + episodic** (the irreproducible data) to **pgvector on
+the RDS the checkpointer/auth/feedback already use** — no new service, no new cost.
+
+- **`vectorstore.py` dual backend.** `DATABASE_URL` set → pgvector; absent → Chroma (dev unchanged).
+  `PgCollection` mimics the *exact* Chroma Collection subset the callers use (`count/upsert/add/query/
+  get/delete`) with identical return shapes, so `graph.py` and `episodic.py` are backend-agnostic —
+  `_overlay` and `_conversations` each became a one-line swap. One `vec_store(collection, id, document,
+  metadata JSONB, embedding vector(1536))` table, namespaced by collection, HNSW cosine index.
+- **Cosine parity by construction:** Chroma cosine distance and pgvector `<=>` (`vector_cosine_ops`)
+  both return `1 − cos_sim`, so every caller's `1.0 - dist` is unchanged.
+
+### Hypothesis
+
+1. **Behavioral parity.** The same suite — overlay semantic ranking, `_overlay_papers` grouping, the
+   4.4 lifecycle decisions, and episodic **tenant-isolated** recall — passes **identically** on Chroma
+   and on a real pgvector, exercising the actual `graph`/`episodic` code paths with real embeddings.
+2. **Durability.** A row written to the pgvector overlay in one process is visible from a **fresh
+   process** (the redeploy analog) — the exact thing Chroma-on-Fargate fails.
+3. **No regression.** Local dev (Chroma) behaves exactly as before; the index-free eval gate still
+   passes after the import/`_overlay` refactor.
+
+### Result — parity 11/11 on both backends; durable across a process restart; gate green.
+
+- **Chroma:** 11/11. **pgvector** (Docker `pgvector/pgvector:pg16`): **11/11, identical** — overlay
+  search ranks FlashAttention #1 for an attention query, `_overlay_papers` groups + carries
+  `chunk_ids`/`ingested_at`, lifecycle skip/replace/ingest all fire, episodic recall finds tenant A's
+  turn and **tenant B cannot see it**.
+- **Durability:** wrote one overlay chunk in process 1; a separate process 2 read `count == 1`, then
+  cleaned up — *"overlay survived a full process restart."*
+- **Regression:** `run_all.py --ci` (Chroma) → all four nodes dangerous=0, **exit 0**.
+- One real bug found + fixed mid-test: a plain `list` param adapts to a Postgres `double precision[]`,
+  not a `vector` (`operator does not exist: vector <=> double precision[]`) — wrapped query+upsert
+  embeddings in `pgvector.Vector` so they adapt to the `vector` type.
+
+### Interpretation
+
+1. **The scoping decision is the senior call.** "Make retrieval durable" naively means "migrate the
+   vector DB"; the right answer is "make durable only what you can't reproduce." Leaving the frozen,
+   version-controlled base on Chroma keeps the demo's hot path untouched and the change low-risk, while
+   still closing the actual gap (your ingested papers + memory now survive a redeploy).
+2. **API-mimicry beat a rewrite.** Because `PgCollection` reproduces Chroma's used method shapes, the
+   two consumers changed by one line each and the *same* test asserts both backends — the cleanest
+   possible proof that the swap is behavior-preserving.
+3. **The bug is the kind only a live backend catches.** No amount of reading would have surfaced the
+   `list → array` adapter mismatch; standing up a real pgvector and running the real path did, in one
+   error. Verifying against the actual datastore, not a mock, is what made 4.3 trustworthy.
+4. **One RDS now backs four concerns** (checkpoints, auth, feedback, vectors) — the single managed
+   datastore that lets the single-task Fargate constraint finally relax.
+
+### Decision
+
+- **4.3 code complete + locally verified — PHASE 4 CODE COMPLETE.** Overlays + episodic are durable on
+  pgvector in prod, Chroma in dev, base untouched. **NOT deployed** — paused for the AWS go-ahead per
+  the standing agreement. Deploy runbook: (1) `CREATE EXTENSION vector` on RDS runs automatically on
+  first `vectorstore` init (RDS PG16 supports pgvector; master user has rights) — or run once manually;
+  (2) build/push `stage3-v15`, new task-def rev, deploy; (3) verify durability live: ingest a paper →
+  force a redeploy → confirm it (and episodic recall) persist. The whole Phase 4 set (4.1–4.4) ships in
+  one redeploy + one commit.
+
+### Known limitations
+
+- **Base + overlay are now two stores** (Chroma base ∪ pgvector overlay) merged in `retrieve_node` —
+  deliberate (durability where it's needed), but a future "everything on pgvector" would unify them at
+  the cost of migrating the reproducible base.
+- **Connection-per-module:** checkpointer/auth/feedback/vectorstore each hold a psycopg connection (~4
+  on RDS t4g.micro — fine; a pool is the scale refinement).
+- **HNSW index is created but untuned** (`m`/`ef_construction` defaults) — irrelevant at current
+  volume, a knob if overlays grow large.
+- Tenant overlays are still **vector-only** (no per-tenant BM25 — carried from 3.2); base keeps hybrid.

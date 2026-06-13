@@ -31,3 +31,5 @@ stage_3/.arxiv_cache/
 stage_3/checkpoints.db*
 # Auth store (local dev)
 stage_3/auth.db*
+# Feedback / response log (local dev)
+stage_3/feedback.db*

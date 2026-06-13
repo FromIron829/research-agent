@@ -83,5 +83,8 @@ def run():
         sq = plan_query_node({"history": hist, "question": msg})["sub_queries"]
         print(f"    {msg}\n        sub_queries={sq}  (known: {known})")
 
+    return {"name": "planner", "n": len(rows), "dangerous": len(dangerous),
+            "metrics": {"clean": clean, "wasteful": len(wasteful)}}
+
 if __name__ == "__main__":
     run()

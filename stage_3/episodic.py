@@ -2,12 +2,13 @@ import sys
 import uuid
 import time
 from pathlib import Path
-import chromadb
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "stage_1"))
-from retrieve import embed_query, CHROMA_DIR
+from retrieve import embed_query
+import vectorstore
 
-_conversations = chromadb.PersistentClient(path=str(CHROMA_DIR)).get_or_create_collection("conversations", metadata={"hnsw:space": "cosine"})
+# Durable on pgvector in prod, Chroma in dev (vectorstore picks by DATABASE_URL). 4.3.
+_conversations = vectorstore.get_collection("conversations", space="cosine")
 
 def remember_turn(thread_id: str, question: str, answer: str, tenant: str = "public"):
     ts = time.time()

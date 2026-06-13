@@ -79,5 +79,8 @@ def run():
     print(f"\nFALSE POSITIVES (synthesis wrongly flagged): {false_pos}/{n_syn}  <- Exp 2 regression guard")
     print(f"FALSE NEGATIVES (fabrication passed = DANGEROUS): {false_neg}/{n_fab}")
 
+    return {"name": "grounding_synthesis", "n": len(CASES), "dangerous": false_neg,
+            "metrics": {"false_positives": false_pos, "n_syn": n_syn, "n_fab": n_fab}}
+
 if __name__ == "__main__":
     run()

@@ -13,7 +13,14 @@ COLLECTION_NAME = "papers"
 EMBED_MODEL = "text-embedding-3-small"
 
 _openai_client = OpenAI()
-_collection = chromadb.PersistentClient(path=str(CHROMA_DIR)).get_collection(COLLECTION_NAME)
+_chroma_client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+try:
+    _collection = _chroma_client.get_collection(COLLECTION_NAME)
+except Exception:
+    # Missing index (CI runner / fresh checkout): create an empty collection so importing
+    # stays cheap and import-safe. Retrieval-dependent code still needs a populated index;
+    # the index-free node evals (router/planner/grounding/keep-best) don't touch it.
+    _collection = _chroma_client.get_or_create_collection(COLLECTION_NAME)
 
 def embed_query(query: str):
     response = _openai_client.embeddings.create(model=EMBED_MODEL, input=[query])

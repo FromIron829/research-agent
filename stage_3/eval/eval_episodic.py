@@ -76,10 +76,19 @@ def run_recall():
             print(f"  [{mark}] {query!r}\n        top: {got_qs}")
         n = len(QUERIES)
         print(f"\nrecall@1: {hit1}/{n}    recall@3: {hit3}/{n}")
+        return hit1, hit3, n
     finally:
         episodic._conversations.delete(where={"thread_id": EVAL_THREAD})   # self-clean
         print("(cleaned up seeded eval turns)")
 
+def run():
+    recall_miss, hijack = run_routing()
+    hit1, hit3, n = run_recall()
+    # dangerous = real questions hijacked into memory_recall (silently answered "nothing stored")
+    # + recall questions that never reach the store
+    return {"name": "episodic", "n": len(ROUTING), "dangerous": len(hijack) + len(recall_miss),
+            "metrics": {"hijacks": len(hijack), "recall_misses": len(recall_miss),
+                        "recall@1": f"{hit1}/{n}", "recall@3": f"{hit3}/{n}"}}
+
 if __name__ == "__main__":
-    run_routing()
-    run_recall()
+    run()

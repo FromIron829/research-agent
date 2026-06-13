@@ -168,16 +168,51 @@ per-tenant corpus + memory isolation, prompt-injection hardening. Deployed throu
 
 ## Phase 4 — Quality lifecycle & scale (Tier 4)
 
-- [ ] **4.1 Online eval + feedback loop** — capture user feedback (👍/👎), sample live traffic for
-  review, monitor answer quality in prod; eval-gated CI that blocks a deploy on regression.
-- [ ] **4.2 Prompt/model versioning** — persist `prompt_version` + model id per response
-  (flagged unresolved since Stage 2); A/B framework so prompt changes are provably non-regressive.
-- [ ] **4.3 Retrieval at scale** — managed vector store (pgvector/Pinecone/Weaviate) + incremental
-  sparse index; today BM25 does a full O(n) rebuild on every ingest.
-- [ ] **4.4 Corpus lifecycle** — paper version handling (v1→v2), dedup at scale, size bounds /
-  eviction.
+- [x] **4.1 Online eval + feedback loop** — capture user feedback (👍/👎), monitor answer quality in
+  prod; eval-gated CI that blocks on regression. **(Exp 23–24, not yet deployed.)**
+  - [x] **4.1a Feedback loop (Exp 23):** `feedback.py` (`responses` log + `feedback` table, dual
+    SQLite/RDS backend); response logged at the API boundary with `prompt_version`/`model`/`grounded`/
+    `tokens`; `POST /feedback` (ownership-fenced: 404 unknown / 403 cross-tenant / 200 owner);
+    `GET /admin/quality` monitor with per-`prompt_version` split; 👍/👎 bar in the web UI. 12/12
+    forced-path checks.
+  - [x] **4.1b Eval-gated CI (Exp 24):** `eval/run_all.py` scorecard + `baseline.json` dangerous-error
+    regression gate (exit 1 on regression, verified both directions); `ci.yml` (free py_compile +
+    key-free import smoke, every push) + `eval-gate.yml` (secrets-gated, nightly/dispatch). Each eval
+    `run()` returns a scorecard; `retrieve.py` made import-safe without the corpus. The four index-free
+    evals gate CI; relevance + episodic stay local until 4.3 (managed store). **TODO to activate:**
+    add `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` as repo secrets.
+  - Deferred: live-traffic sampling/review queue; LLM-eval flakiness mitigation (majority-of-3 at the
+    gate); historical scorecard trend store.
+- [x] **4.2 Prompt/model versioning (Exp 25)** — `PROMPTS` registry (every variant composes in the
+  3.3 SECURITY clause; v1 byte-identical to pre-4.2); `resolve_prompt_version(tenant)` deterministic
+  env-tunable A/B (`PROMPT_AB_VERSION`/`PROMPT_AB_PERCENT`, off by default); resolved version flows
+  state → response stamp → eval (`run_all.py --prompt-version` gates a variant pre-rollout);
+  `quality_summary` compares arms by satisfaction + avg tokens. Closes the Stage-2 "which prompt
+  produced this?" gap. 15/15 checks; eval gate confirms non-regression. Deferred: model-level A/B,
+  per-request randomization, auto winner-promotion.
+- [x] **4.3 Retrieval at scale / durability (Exp 27)** — `vectorstore.py` dual backend: per-tenant
+  overlays + episodic memory move to **pgvector on the existing RDS** in prod (durable across
+  redeploys), Chroma in dev. `PgCollection` mimics the Chroma API subset → `_overlay`/`_conversations`
+  one-line swaps; one `vec_store` table, HNSW cosine, parity by `1−cos_sim`. **Scoped deliberately:**
+  the frozen, reproducible base corpus stays on Chroma (don't migrate what you can rebuild). Parity
+  11/11 on both backends + durability across a process restart + gate green. **Code done, deploy
+  paused for go-ahead.** Deferred: per-tenant BM25, connection pooling, HNSW tuning, base unification.
+- [x] **4.4 Corpus lifecycle (Exp 26)** — version-normalized ingest dedup (against frozen base via
+  manifest + tenant overlay), v1→v2 replacement (drops old chunks), and overlay eviction
+  (`OVERLAY_MAX_PAPERS=20`, oldest-by-`ingested_at`), all gated *before* the arXiv download. 12/12
+  network-free checks. Deferred: durability (→ 4.3), byte-budget eviction, version rollback.
 
 ---
 
-**Current focus:** Phase 0. Highest single-fix leverage once Phase 0 closes: **1.1–1.3**
-(durable + session-aware state) — that's what makes the memory layer actually usable in production.
+## Phase 4 — COMPLETE (code) ✅
+
+All four subtasks done and locally verified (Exp 23–27): online feedback loop + eval-gated CI,
+prompt/model versioning + A/B, corpus lifecycle (dedup/version/eviction), and a durable pgvector
+vector store. **One redeploy + one commit ships the whole set;** the redeploy is paused for the AWS
+go-ahead. Remaining production-readiness items are now deferred refinements (per-tenant BM25,
+connection pooling, live-traffic sampling, LLM-eval flakiness mitigation), not phase-level gaps.
+
+**Deploy runbook (Phase 4):** build/push `stage3-v15` (pgvector dep already added) → new task-def
+revision → deploy. `CREATE EXTENSION vector` runs on first `vectorstore` init (RDS PG16 supports it).
+Activate `eval-gate.yml` by adding `ANTHROPIC_API_KEY` + `OPENAI_API_KEY` repo secrets. Verify live:
+ingest a paper → force a redeploy → confirm it + episodic recall persist.

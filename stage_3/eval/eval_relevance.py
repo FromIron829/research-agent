@@ -42,6 +42,9 @@ def run():
     print(f"\nMISSED GAPS ({len(missed_gap)}) - out-of-corpus graded sufficient (answers from junk = dangerous:)")
     for q in missed_gap: print(f"    -{q}")
 
+    return {"name": "relevance", "n": len(results), "dangerous": len(missed_gap),
+            "metrics": {"accuracy": round(correct / len(results), 3), "over_triggered": len(over_trigger)}}
+
 if __name__ == "__main__":
     run()
 

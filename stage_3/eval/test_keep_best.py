@@ -5,7 +5,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import graph
 from graph import grade_groundedness_node, respond_node
 
-# respond_node writes to the episodic store (0.6); stub it out for unit isolation
+# respond_node writes to the episodic store (0.6); stub it out for unit isolation.
+# Save the original so run() can restore it — otherwise a full-suite run_all would leave
+# eval_episodic's recall seeding stubbed (cross-eval contamination).
+_ORIG_REMEMBER = graph.episodic.remember_turn
 graph.episodic.remember_turn = lambda *a, **k: None
 CFG = {"configurable": {"thread_id": "keep-best-test"}}
 
@@ -52,7 +55,15 @@ def test_keep_best_tracking():
     check("both attempts ungrounded (cap scenario reached)", not s["grounded"])
     check("keep-best distinguishes drafts: B (fewer fabs) kept over A", final == B and final != A)
 
-if __name__ == "__main__":
+def run():
+    _results.clear()
     test_respond_selection()
     test_keep_best_tracking()
+    graph.episodic.remember_turn = _ORIG_REMEMBER   # restore for any later eval in the suite
     print(f"\n{sum(_results)}/{len(_results)} checks passed")
+    # a failed correctness check IS the dangerous error for this gate
+    return {"name": "keep_best", "n": len(_results), "dangerous": len(_results) - sum(_results),
+            "metrics": {"passed_checks": sum(_results)}}
+
+if __name__ == "__main__":
+    run()

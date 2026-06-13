@@ -104,5 +104,8 @@ def run():
         got = route_intent_node({"history": hist, "question": msg})["intent"]
         print(f"    got {got!r}: {msg}")
 
+    return {"name": "router", "n": len(rows), "dangerous": len(dangerous),
+            "metrics": {"accuracy": round(correct / len(rows), 3), "safe": len(safe)}}
+
 if __name__ == "__main__":
     run()

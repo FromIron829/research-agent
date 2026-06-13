@@ -41,6 +41,13 @@
   #answer code { background:#f3f4f6; padding:1px 5px; border-radius:4px; font-size:.85em; }
   #error { display:none; margin-top:20px; padding:14px 16px; border-radius:10px;
            background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; font-size:.9rem; }
+  #feedback { display:none; margin-top:10px; align-items:center; gap:8px;
+              font-size:.85rem; color:var(--muted); }
+  #feedback button { border:1px solid var(--line); background:#fff; border-radius:8px;
+                     padding:4px 10px; cursor:pointer; font-size:.95rem; }
+  #feedback button:hover { background:#f3f4f6; }
+  #feedback button:disabled { opacity:.4; cursor:default; }
+  #fb-thanks { color:var(--ok); }
 </style>
 </head>
 <body>
@@ -66,6 +73,12 @@
   </div>
 
   <div id="answer"></div>
+  <div id="feedback">
+    <span>Was this answer helpful?</span>
+    <button id="fb-up" title="Helpful">👍</button>
+    <button id="fb-down" title="Not helpful">👎</button>
+    <span id="fb-thanks"></span>
+  </div>
   <div id="error"></div>
 </div>
 
@@ -88,6 +101,7 @@ const LABELS = {
 };
 
 let threadId = sessionStorage.getItem("thread_id") || null;
+let lastResponseId = null;
 let t0 = 0;
 
 function getKey(forceAsk=false) {
@@ -145,6 +159,7 @@ async function ask() {
   if (!key) return;
   $("ask").disabled = true;
   $("timeline").innerHTML = ""; show("answer", false); show("error", false); show("approval", false);
+  hideFeedback();
   t0 = performance.now();
   step("Working…", false);
 
@@ -187,6 +202,7 @@ function handle(e) {
     settlePending();
     $("answer").innerHTML = md(e.answer || "(empty answer)");
     show("answer", true);
+    showFeedback(e.response_id);
   } else if (e.event === "approval_needed") {
     settlePending("Sources insufficient — the agent wants to add a paper to the corpus");
     $("approval-q").textContent = e.prompt;
@@ -211,14 +227,38 @@ async function resume(decision) {
     settlePending(decision === "yes" ? "Paper ingested — answer regenerated from the new sources" : "Ingestion declined");
     $("answer").innerHTML = md(data.answer || "");
     show("answer", true);
+    showFeedback(data.response_id);
   } catch (e) { return fail("Network error during resume."); }
   $("ask").disabled = false;
+}
+
+function hideFeedback() { $("feedback").style.display = "none"; }
+function showFeedback(responseId) {
+  lastResponseId = responseId || null;
+  if (!lastResponseId) return;                 // no id -> nothing to rate
+  $("fb-thanks").textContent = "";
+  $("fb-up").disabled = $("fb-down").disabled = false;
+  $("feedback").style.display = "flex";
+}
+async function sendFeedback(rating) {
+  if (!lastResponseId) return;
+  $("fb-up").disabled = $("fb-down").disabled = true;
+  try {
+    const res = await fetch("/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-API-Key": getKey() },
+      body: JSON.stringify({ response_id: lastResponseId, rating }),
+    });
+    $("fb-thanks").textContent = res.ok ? "Thanks for the feedback!" : "Couldn't record that.";
+  } catch (e) { $("fb-thanks").textContent = "Network error."; }
 }
 
 $("ask").onclick = ask;
 $("q").addEventListener("keydown", e => { if (e.key === "Enter") ask(); });
 $("approve").onclick = () => resume("yes");
 $("decline").onclick = () => resume("no");
+$("fb-up").onclick = () => sendFeedback(1);
+$("fb-down").onclick = () => sendFeedback(-1);
 </script>
 </body>
 </html>
